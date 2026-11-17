@@ -37,4 +37,5 @@ server_scripts {
 client_scripts {
     'client/wardrobe.lua',
     'client/contact.lua',
+    'client/maptools.lua',
 }

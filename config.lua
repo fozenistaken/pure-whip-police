@@ -32,32 +32,31 @@ Config.Ranks = {
 -- Map blips for the stations, seen by everyone. dept: a key of Config.Departments. sprite: GTA blip sprite (60 =
 -- police star). Example: { dept = 'lspd', label = 'Vespucci Police', coords = vector3(-1108.0, -845.0, 19.3) }
 Config.Stations = {
-    { dept = 'lspd', label = 'Mission Row Police Station', coords = vector3(428.9, -984.5, 30.7) },
-    { dept = 'bcso', label = 'Sandy Shores Sheriff', coords = vector3(1853.2, 3686.6, 34.3) },
-    { dept = 'bcso', label = 'Paleto Bay Sheriff', coords = vector3(-448.4, 6008.6, 31.7) },
+    { dept = 'lspd', label = 'Mission Row Police Station', coords = vector3(428.23, -984.28, 29.76) },
+    { dept = 'bcso', label = 'Sandy Shores Sheriff', coords = vector3(1853.4, 3684.5, 34.3) },
+    { dept = 'bcso', label = 'Paleto Bay Sheriff', coords = vector3(-451.55, 6014.25, 31.72) },
 }
 Config.StationSprite = 60   -- GTA blip sprite for stations (60 police star, 526 sheriff badge)
 
 -- Prompts in the world. kind: duty (go on and off duty), locker (own locker), stash (shared station stash), armory,
 -- wardrobe, garage (fleet cars; spawn = where the car appears, vector4), kiosk (anyone pays their fines). More kinds come with the prison and MDT.
--- These are starting spots on GTA's own stations: place them where your map has them with /whip -> Settings ->
--- Police -> Points -> Place. reach: metres the prompt works from, 0.5-25. Example:
--- { dept = 'lspd', kind = 'duty', label = 'Front desk', coords = vector3(441.8, -981.9, 30.7) }
+-- The defaults sit in GTA's own interiors: Mission Row is GTA's v_policehub (desk, armoury gate, corridor, office);
+-- the sheriff desks and the parking spots come from qb-policejob, qbx_police and the Vertexlabs duty system. On a
+-- custom map (an MLO), move them with /whip -> Settings -> Police -> Points -> Place. Example:
+-- { dept = 'lspd', kind = 'duty', label = 'Front desk', coords = vector3(440.09, -974.92, 30.69) }
 Config.Points = {
-    { dept = 'lspd', kind = 'duty', label = 'Front desk', coords = vector3(441.8, -981.9, 30.7) },
-    { dept = 'bcso', kind = 'duty', label = 'Front desk', coords = vector3(1853.0, 3689.5, 34.3) },
-    { dept = 'bcso', kind = 'duty', label = 'Front desk', coords = vector3(-448.0, 6012.0, 31.7) },
-    { dept = 'lspd', kind = 'locker', label = 'Lockers', coords = vector3(452.4, -992.8, 30.7) },
-    { dept = 'lspd', kind = 'stash', label = 'Station stash', coords = vector3(451.0, -995.0, 30.7) },
-    { dept = 'lspd', kind = 'armory', label = 'Armory', coords = vector3(452.3, -980.0, 30.7) },
-    { dept = 'lspd', kind = 'wardrobe', label = 'Wardrobe', coords = vector3(454.5, -990.9, 30.7) },
-    { dept = 'lspd', kind = 'kiosk', label = 'Pay fines', coords = vector3(436.9, -985.6, 30.7) },
-    { dept = 'lspd', kind = 'garage', label = 'Fleet', coords = vector3(441.4, -1013.7, 28.6),
-      spawn = vector4(446.0, -1025.9, 28.6, 0.0) },
-    { dept = 'bcso', kind = 'armory', label = 'Armory', coords = vector3(1861.3, 3689.0, 34.3) },
-    { dept = 'bcso', kind = 'wardrobe', label = 'Wardrobe', coords = vector3(1857.3, 3690.0, 34.3) },
-    { dept = 'bcso', kind = 'garage', label = 'Fleet', coords = vector3(1866.8, 3691.5, 33.8),
-      spawn = vector4(1867.8, 3697.3, 33.6, 210.0) },
+    { dept = 'lspd', kind = 'duty', label = 'Duty desk', coords = vector3(440.09, -974.92, 30.69) },
+    { dept = 'lspd', kind = 'kiosk', label = 'Pay fines', coords = vector3(441.03, -980.77, 30.69) },
+    { dept = 'lspd', kind = 'armory', label = 'Armory', coords = vector3(453.08, -980.09, 30.69) },
+    { dept = 'lspd', kind = 'locker', label = 'Lockers', coords = vector3(454.43, -985.97, 30.69) },
+    { dept = 'lspd', kind = 'wardrobe', label = 'Wardrobe', coords = vector3(458.43, -985.97, 30.69) },
+    { dept = 'lspd', kind = 'stash', label = 'Station stash', coords = vector3(451.70, -973.23, 30.69) },
+    { dept = 'lspd', kind = 'garage', label = 'Fleet', coords = vector3(448.16, -1017.41, 28.56),
+      spawn = vector4(463.0, -1015.0, 28.0, 87.0) },
+    { dept = 'bcso', kind = 'duty', label = 'Duty desk', coords = vector3(1852.45, 3689.65, 34.27) },
+    { dept = 'bcso', kind = 'duty', label = 'Duty desk', coords = vector3(-449.81, 6012.91, 31.82) },
+    { dept = 'bcso', kind = 'garage', label = 'Fleet', coords = vector3(-455.39, 6002.02, 31.34),
+      spawn = vector4(-461.39, 6002.24, 31.34, 87.93) },
 }
 Config.PointReach = 2.0   -- metres a point's prompt works from, 0.5-25 (2.0 is arm's length at a desk)
 
