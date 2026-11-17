@@ -38,15 +38,18 @@ Config.Stations = {
 }
 Config.StationSprite = 60   -- GTA blip sprite for stations (60 police star, 526 sheriff badge)
 
--- Prompts in the world. kind: duty (go on and off duty), locker (own locker), stash (shared station stash), armory,
--- wardrobe, garage (fleet cars; spawn = where the car appears, vector4), kiosk (anyone pays their fines). More kinds come with the prison and MDT.
+-- Prompts in the world. kind: front (the lobby desk: officers clock in and out, anyone pays fines; clerk = where its
+-- NPC stands and faces, vector4, or nil for a plain prompt; model = that NPC, nil for Config.FrontDesk.model),
+-- duty (go on and off duty only), locker (own locker), stash (shared station stash), armory, wardrobe,
+-- garage (fleet cars; spawn = where the car appears, vector4), kiosk (anyone pays their fines, no clerk).
 -- The defaults sit in GTA's own interiors: Mission Row is GTA's v_policehub (desk, armoury gate, corridor, office);
 -- the sheriff desks and the parking spots come from qb-policejob, qbx_police and the Vertexlabs duty system. On a
 -- custom map (an MLO), move them with /whip -> Settings -> Police -> Points -> Place. Example:
--- { dept = 'lspd', kind = 'duty', label = 'Front desk', coords = vector3(441.03, -978.77, 30.69) }
+-- { dept = 'lspd', kind = 'front', label = 'Front desk', coords = vector3(441.03, -980.77, 30.69),
+--   clerk = vector4(441.03, -978.77, 30.69, 180.0) }
 Config.Points = {
-    { dept = 'lspd', kind = 'duty', label = 'Duty desk', coords = vector3(441.03, -978.77, 30.69) },
-    { dept = 'lspd', kind = 'kiosk', label = 'Pay fines', coords = vector3(441.03, -980.77, 30.69) },
+    { dept = 'lspd', kind = 'front', label = 'Front desk', coords = vector3(441.03, -980.77, 30.69),
+      clerk = vector4(441.03, -978.77, 30.69, 180.0) },
     { dept = 'lspd', kind = 'armory', label = 'Armory', coords = vector3(453.08, -980.09, 30.69) },
     { dept = 'lspd', kind = 'locker', label = 'Lockers', coords = vector3(454.43, -985.97, 30.69) },
     { dept = 'lspd', kind = 'wardrobe', label = 'Wardrobe', coords = vector3(458.43, -985.97, 30.69) },
@@ -59,6 +62,10 @@ Config.Points = {
       spawn = vector4(-461.39, 6002.24, 31.34, 87.93) },
 }
 Config.PointReach = 2.0   -- metres a point's prompt works from, 0.5-25 (2.0 is arm's length at a desk)
+
+-- The lobby clerk at front points. model: a GTA ped (s_f_y_cop_01 LSPD officer, s_m_y_sheriff_01 deputy).
+-- reach: metres the Talk prompt works from across the counter, 0.5-25. scenario: a GTA idle scenario, or nil to stand.
+Config.FrontDesk = { model = 's_f_y_cop_01', reach = 2.5, scenario = 'WORLD_HUMAN_CLIPBOARD' }
 
 -- Licences (certifications) command can grant an officer. key: letters, digits and _; value: the name shown.
 -- They gate armory tiers and fleet cars beside rank. Example: dive = 'Dive team'

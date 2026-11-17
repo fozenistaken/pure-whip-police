@@ -33,6 +33,7 @@ Whip.configPage({
                   fields = {
                       { key = 'dept', type = 'string', label = 'Department key', maxLen = 50 },
                       { key = 'kind', type = 'enum', label = 'Kind', options = {
+                          { value = 'front', label = 'Front desk (clock in, pay fines)' },
                           { value = 'duty', label = 'Duty desk' }, { value = 'locker', label = 'Own locker' },
                           { value = 'stash', label = 'Station stash' }, { value = 'armory', label = 'Armory' },
                           { value = 'wardrobe', label = 'Wardrobe' }, { value = 'garage', label = 'Fleet garage' },
@@ -41,6 +42,8 @@ Whip.configPage({
                       { key = 'label', type = 'string', label = 'Name', maxLen = 40 },
                       { key = 'coords', type = 'vec3', label = 'Where', here = true, place = true },
                       { key = 'spawn', type = 'vec4', label = 'Car spawn (garage)', here = true, place = true, nullable = true, emptyLabel = 'not a garage' },
+                      { key = 'clerk', type = 'vec4', label = 'Clerk stands (front desk)', here = true, place = true, nullable = true, emptyLabel = 'no clerk' },
+                      { key = 'model', type = 'string', label = 'Clerk ped model', maxLen = 64, nullable = true, emptyLabel = 'the default' },
                   } },
                 { key = 'Fines.account', type = 'string', label = 'Fines go to account', maxLen = 20, nullable = true, emptyLabel = 'nowhere',
                   help = "A bank account number, e.g. WB-123456. Empty: the money goes nowhere." },

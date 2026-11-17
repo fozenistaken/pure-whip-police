@@ -32,6 +32,7 @@ server_scripts {
     'data/penal_code.lua',
     'server/records.lua',
     'server/fines.lua',
+    'server/front.lua',
     'server/prison.lua',
     'server/dispatch.lua',
     'server/radio.lua',

@@ -167,7 +167,7 @@ H.fine = { perm = 'fine', fn = function(src, dept, a)
     if not id then return false, why end
     Whip.core:LogActivity(src, 'fined', { detail = ('$%d to charId %d'):format(amount, charId) })
     local target = sourceOf(charId)
-    if target then Whip.core:NotifyPlayer(target, ('You were fined $%d. Pay at a police kiosk.'):format(amount), 'warning') end
+    if target then Whip.core:NotifyPlayer(target, ('You were fined $%d. Pay at a police front desk.'):format(amount), 'warning') end
     return { id = id, amount = amount }
 end }
 
