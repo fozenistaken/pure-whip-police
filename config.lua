@@ -43,9 +43,9 @@ Config.StationSprite = 60   -- GTA blip sprite for stations (60 police star, 526
 -- The defaults sit in GTA's own interiors: Mission Row is GTA's v_policehub (desk, armoury gate, corridor, office);
 -- the sheriff desks and the parking spots come from qb-policejob, qbx_police and the Vertexlabs duty system. On a
 -- custom map (an MLO), move them with /whip -> Settings -> Police -> Points -> Place. Example:
--- { dept = 'lspd', kind = 'duty', label = 'Front desk', coords = vector3(440.09, -974.92, 30.69) }
+-- { dept = 'lspd', kind = 'duty', label = 'Front desk', coords = vector3(441.03, -978.77, 30.69) }
 Config.Points = {
-    { dept = 'lspd', kind = 'duty', label = 'Duty desk', coords = vector3(440.09, -974.92, 30.69) },
+    { dept = 'lspd', kind = 'duty', label = 'Duty desk', coords = vector3(441.03, -978.77, 30.69) },
     { dept = 'lspd', kind = 'kiosk', label = 'Pay fines', coords = vector3(441.03, -980.77, 30.69) },
     { dept = 'lspd', kind = 'armory', label = 'Armory', coords = vector3(453.08, -980.09, 30.69) },
     { dept = 'lspd', kind = 'locker', label = 'Lockers', coords = vector3(454.43, -985.97, 30.69) },
