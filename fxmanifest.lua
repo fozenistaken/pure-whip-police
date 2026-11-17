@@ -16,6 +16,7 @@ shared_scripts {
     'shared/settings.lua',
     'shared/util.lua',
     'shared/catalogue.lua',
+    'shared/records_logic.lua',
 }
 
 server_scripts {
@@ -27,6 +28,9 @@ server_scripts {
     'server/gear.lua',
     'server/pay.lua',
     'server/contact.lua',
+    'data/penal_code.lua',
+    'server/records.lua',
+    'server/fines.lua',
     'server/main.lua',
 }
 

@@ -17,6 +17,7 @@ local function test(rel) dofile(root .. '/tests/' .. rel) end
 
 local SUITES = {
     { 'shared/catalogue.lua', 'catalogue_test.lua' },
+    { 'shared/records_logic.lua', 'records_test.lua' },
 }
 for _, s in ipairs(SUITES) do load(s[1]); test(s[2]) end
 

@@ -39,7 +39,7 @@ Config.Stations = {
 Config.StationSprite = 60   -- GTA blip sprite for stations (60 police star, 526 sheriff badge)
 
 -- Prompts in the world. kind: duty (go on and off duty), locker (own locker), stash (shared station stash), armory,
--- wardrobe, garage (fleet cars; spawn = where the car appears, vector4). More kinds come with the prison and MDT.
+-- wardrobe, garage (fleet cars; spawn = where the car appears, vector4), kiosk (anyone pays their fines). More kinds come with the prison and MDT.
 -- These are starting spots on GTA's own stations: place them where your map has them with /whip -> Settings ->
 -- Police -> Points -> Place. reach: metres the prompt works from, 0.5-25. Example:
 -- { dept = 'lspd', kind = 'duty', label = 'Front desk', coords = vector3(441.8, -981.9, 30.7) }
@@ -51,6 +51,7 @@ Config.Points = {
     { dept = 'lspd', kind = 'stash', label = 'Station stash', coords = vector3(451.0, -995.0, 30.7) },
     { dept = 'lspd', kind = 'armory', label = 'Armory', coords = vector3(452.3, -980.0, 30.7) },
     { dept = 'lspd', kind = 'wardrobe', label = 'Wardrobe', coords = vector3(454.5, -990.9, 30.7) },
+    { dept = 'lspd', kind = 'kiosk', label = 'Pay fines', coords = vector3(436.9, -985.6, 30.7) },
     { dept = 'lspd', kind = 'garage', label = 'Fleet', coords = vector3(441.4, -1013.7, 28.6),
       spawn = vector4(446.0, -1025.9, 28.6, 0.0) },
     { dept = 'bcso', kind = 'armory', label = 'Armory', coords = vector3(1861.3, 3689.0, 34.3) },
@@ -144,3 +145,7 @@ Config.Pay = {
 -- Cuffs and searches. reach: metres from the suspect, 1-5. zipMinutes: zip ties fall off after this, 1-60.
 -- searchSeconds: the search bar, 1-20. Escort, seating in a car and pulling out are WHIP's own (arrow keys).
 Config.Contact = { reach = 2.5, zipMinutes = 10, searchSeconds = 4 }
+
+-- Fines. account: the bank account number fines are paid into (e.g. 'WB-123456', a business account an admin made
+-- for the city); '' sends the money nowhere. Kiosks are points of kind 'kiosk', open to everyone.
+Config.Fines = { account = '' }
