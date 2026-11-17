@@ -34,6 +34,7 @@ server_scripts {
     'server/fines.lua',
     'server/prison.lua',
     'server/dispatch.lua',
+    'server/radio.lua',
     'server/main.lua',
 }
 
