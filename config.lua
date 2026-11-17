@@ -146,8 +146,8 @@ Config.Pay = {
 Config.Contact = { reach = 2.5, zipMinutes = 10, searchSeconds = 4 }
 
 -- Fines. account: the bank account number fines are paid into (e.g. 'WB-123456', a business account an admin made
--- for the city); '' sends the money nowhere. Kiosks are points of kind 'kiosk', open to everyone.
-Config.Fines = { account = '' }
+-- for the city); nil sends the money nowhere. Kiosks are points of kind 'kiosk', open to everyone.
+Config.Fines = { account = nil }
 
 -- Prison (Bolingbroke). Positions from qb-prison's open config (inside spots, the gate outside, the work spots).
 -- minutesPerMonth: real minutes served per sentenced month, 0.1-60. maxMonths: the longest one sentence, 1-1200.
