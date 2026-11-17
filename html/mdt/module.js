@@ -130,34 +130,55 @@
   const chargeList = (app) => Object.entries(app.state.charges).filter(([, n]) => n > 0).map(([code, count]) => ({ code, count }));
   const navFor = (app) => NAV.filter(([id]) => id !== 'command' || perms(app).command || perms(app).prison_staff);
 
-  const ask = async (app, action, args, after) => {
+  const showBusy = (app) => {
+    const ctx = live.get(app);
+    const bar = ctx && ctx.el.querySelector('.mdt-main > .pwp-busy');
+    if (bar) bar.classList.toggle('on', !!app.state.busyShown);
+  };
+
+  const ask = async (app, action, args, after, quiet) => {
     const s = app.state;
-    s.busy += 1; draw(app);
+    let timer = 0;
+    if (!quiet) {
+      s.busy += 1;
+      timer = setTimeout(() => { s.busyShown = true; showBusy(app); }, 300);
+    }
     try {
       const r = await app.request(action, args || {});
-      s.err = null;
+      if (!quiet) s.err = null;
       if (after) await after(r);
       return r;
     } catch (e) {
       s.err = (e && e.reason) || 'Something went wrong';
       return null;
     } finally {
-      s.busy -= 1;
-      draw(app);
+      if (!quiet) {
+        clearTimeout(timer);
+        s.busy -= 1;
+        if (s.busy <= 0) { s.busy = 0; s.busyShown = false; }
+        showBusy(app);
+        draw(app);
+      }
     }
   };
 
+  const shown = (s) => JSON.stringify([s.nav, s.penal && s.penal.length, s.calls, s.units, s.recent, s.reports, s.warrants, s.bolos, s.prisoners, s.err]);
+
   const load = async (app) => {
     const s = app.state;
-    if (!s.penal) await ask(app, 'penal', {}, (r) => { s.penal = r; });
-    if (s.nav === 'dispatch') await ask(app, 'dashboard', {}, (r) => { s.calls = r.calls; s.units = r.units; s.recent = r.reports; });
-    else await ask(app, 'calls', {}, (r) => { s.calls = r.calls; s.units = r.units; });
-    if (s.nav === 'reports' && !s.edit) await ask(app, 'reports', { q: '' }, (r) => { s.reports = r; });
+    const before = shown(s);
+    const jobs = [];
+    if (!s.penal) jobs.push(ask(app, 'penal', {}, (r) => { s.penal = r; }, true));
+    if (s.nav === 'dispatch') jobs.push(ask(app, 'dashboard', {}, (r) => { s.calls = r.calls; s.units = r.units; s.recent = r.reports; }, true));
+    else jobs.push(ask(app, 'calls', {}, (r) => { s.calls = r.calls; s.units = r.units; }, true));
+    if (s.nav === 'reports' && !s.edit) jobs.push(ask(app, 'reports', { q: '' }, (r) => { s.reports = r; }, true));
     if (s.nav === 'wanted') {
-      await ask(app, 'warrants', {}, (r) => { s.warrants = r; });
-      await ask(app, 'bolos', {}, (r) => { s.bolos = r; });
+      jobs.push(ask(app, 'warrants', {}, (r) => { s.warrants = r; }, true));
+      jobs.push(ask(app, 'bolos', {}, (r) => { s.bolos = r; }, true));
     }
-    if (s.nav === 'command' && perms(app).prison_staff) await ask(app, 'prisoners', {}, (r) => { s.prisoners = r; });
+    if (s.nav === 'command' && perms(app).prison_staff) jobs.push(ask(app, 'prisoners', {}, (r) => { s.prisoners = r; }, true));
+    await Promise.all(jobs);
+    if (shown(s) !== before) draw(app);
   };
 
   const statusSeg = (app) => {
@@ -370,7 +391,7 @@
     const top = `<header class="mdt-top"><span class="mdt-cs">${B.esc(me.callsign || '')}</span><div class="mdt-who"><b>${B.esc(me.name || '')}</b><span>${B.esc([me.rank, me.short].filter(Boolean).join(' · '))}</span></div>
       ${statusSeg(app)}
       <label class="pwp-search">${B.icons.search}<input id="f-q" data-bind="q" data-enter="search" value="${val(app, 'q')}" placeholder="Search name, citizen ID, plate or report #" autocomplete="off">${phone ? '' : '<span class="pwp-kbd">/</span>'}</label></header>`;
-    const main = `<main class="mdt-main"><div class="pwp-busy ${s.busy ? 'on' : ''}"></div><div class="mdt-view">${s.sheet ? '' : errBar(app)}${view.body}</div>${view.act ? `<div class="mdt-act">${view.act}</div>` : ''}${sheet(app, phone)}</main>`;
+    const main = `<main class="mdt-main"><div class="pwp-busy ${s.busyShown ? 'on' : ''}"></div><div class="mdt-view">${s.sheet ? '' : errBar(app)}${view.body}</div>${view.act ? `<div class="mdt-act">${view.act}</div>` : ''}${sheet(app, phone)}</main>`;
     if (phone) return `<div class="pwp mdt ph">${top}${main}${nav}</div>`;
     return `<div class="pwp mdt tab">${top}${nav}${main}<aside class="mdt-side"><p class="pwp-lbl">Live calls</p><div class="mdt-calls">${callList(app)}</div></aside></div>`;
   };

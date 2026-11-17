@@ -190,10 +190,10 @@ button.pwp-row:active{transform:scale(.985)}
     for (let i = 0; i <= STEPS; i++) frames.push({ offset: i / STEPS, transform: frameAt(i === STEPS ? 1 : springAt((i * m.seconds) / STEPS, 0.38, m.damping)) });
     return { frames, duration: m.seconds * 1000 };
   };
-  const play = (el, frameAt) => {
+  const play = (el, frameAt, already) => {
     if (!el || !el.animate) return null;
     const { frames, duration } = springFrames(frameAt);
-    return el.animate(frames, { duration, easing: 'linear' });
+    return el.animate(frames, { duration, easing: 'linear', delay: already ? -already : 0 });
   };
   const lerp = (a, b, p) => a + (b - a) * p;
 
@@ -211,17 +211,22 @@ button.pwp-row:active{transform:scale(.985)}
     g.style.width = r(to.w);
     g.style.height = r(to.h);
     g.style.transformOrigin = '0 0';
+    const near = (a, b) => Math.abs(a.x - b.x) <= 0.5 && Math.abs(a.y - b.y) <= 0.5 && Math.abs(a.w - b.w) <= 0.5 && Math.abs(a.h - b.h) <= 0.5;
+    const frame = (from) => (p) => `translate(${r(lerp(from.x, to.x, p))},${r(lerp(from.y, to.y, p))}) scale(${lerp(from.w / to.w, 1, p)},${lerp(from.h / to.h, 1, p)})`;
+    const now = performance.now();
+    g.style.transform = `translate(${r(to.x)},${r(to.y)})`;
+    if (last && last.from && near(last, to) && now - last.t0 < motion().seconds * 1000) {
+      play(g, frame(last.from), now - last.t0);
+      return;
+    }
     let from = null;
     if (last) {
-      const p = last.from ? progressAt(performance.now() - last.t0) : 1;
+      const p = last.from ? progressAt(now - last.t0) : 1;
       from = last.from ? { x: lerp(last.from.x, last.x, p), y: lerp(last.from.y, last.y, p), w: lerp(last.from.w, last.w, p), h: lerp(last.from.h, last.h, p) } : last;
     }
-    const moved = from && (Math.abs(from.x - to.x) > 0.5 || Math.abs(from.y - to.y) > 0.5 || Math.abs(from.w - to.w) > 0.5 || Math.abs(from.h - to.h) > 0.5);
-    g.style.transform = `translate(${r(to.x)},${r(to.y)})`;
-    if (moved) {
-      play(g, (p) => `translate(${r(lerp(from.x, to.x, p))},${r(lerp(from.y, to.y, p))}) scale(${lerp(from.w / to.w, 1, p)},${lerp(from.h / to.h, 1, p)})`);
-    }
-    if (memory) memory[key] = moved ? { ...to, from, t0: performance.now() } : { ...to };
+    const moved = from && !near(from, to);
+    if (moved) play(g, frame(from));
+    if (memory) memory[key] = moved ? { ...to, from, t0: now } : { ...to };
   };
 
   const settle = (el, axis, percent) => {
