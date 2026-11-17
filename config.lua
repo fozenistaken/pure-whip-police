@@ -140,3 +140,7 @@ Config.Pay = {
         { level = 100, amount = 200 },
     },
 }
+
+-- Cuffs and searches. reach: metres from the suspect, 1-5. zipMinutes: zip ties fall off after this, 1-60.
+-- searchSeconds: the search bar, 1-20. Escort, seating in a car and pulling out are WHIP's own (arrow keys).
+Config.Contact = { reach = 2.5, zipMinutes = 10, searchSeconds = 4 }

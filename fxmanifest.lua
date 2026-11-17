@@ -26,9 +26,11 @@ server_scripts {
     'server/licences.lua',
     'server/gear.lua',
     'server/pay.lua',
+    'server/contact.lua',
     'server/main.lua',
 }
 
 client_scripts {
     'client/wardrobe.lua',
+    'client/contact.lua',
 }
