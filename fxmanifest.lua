@@ -7,7 +7,7 @@ description 'Police job for WHIP: departments, duty, gear, arrests, records, fin
 author 'fozenistaken'
 version '0.1.0'
 
-dependency 'whip_core'
+dependencies { 'oxmysql', 'whip_core' }
 whip_requires '1.2'
 
 shared_scripts {
@@ -15,11 +15,20 @@ shared_scripts {
     'config.lua',
     'shared/settings.lua',
     'shared/util.lua',
+    'shared/catalogue.lua',
 }
 
 server_scripts {
+    '@oxmysql/lib/MySQL.lua',
     'server/points.lua',
     'server/departments.lua',
     'server/duty.lua',
+    'server/licences.lua',
+    'server/gear.lua',
+    'server/pay.lua',
     'server/main.lua',
+}
+
+client_scripts {
+    'client/wardrobe.lua',
 }

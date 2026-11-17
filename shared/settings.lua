@@ -32,9 +32,10 @@ Whip.configPage({
                   apply = 'restart', why = 'Prompts are placed when the resource starts',
                   fields = {
                       { key = 'dept', type = 'string', label = 'Department key', maxLen = 50 },
-                      { key = 'kind', type = 'enum', label = 'Kind', options = { 'duty' } },
+                      { key = 'kind', type = 'enum', label = 'Kind', options = { 'duty', 'locker', 'stash', 'armory', 'wardrobe', 'garage' } },
                       { key = 'label', type = 'string', label = 'Name', maxLen = 40 },
                       { key = 'coords', type = 'vec3', label = 'Where', here = true, place = true },
+                      { key = 'spawn', type = 'vec4', label = 'Car spawn (garage)', here = true, place = true },
                   } },
                 { key = 'PointReach', type = 'number', label = 'Prompt reach', min = 0.5, max = 25, step = 0.5,
                   unit = 'm', apply = 'restart', why = 'Prompts are placed when the resource starts' },
