@@ -107,8 +107,8 @@ button.pwp-row:active{transform:scale(.985)}
 
 .pwp-bracket{position:relative}
 .pwp-bracket::before,.pwp-bracket::after{content:'';position:absolute;width:.625rem;height:.625rem;border-color:var(--bc,var(--accent));border-style:solid;pointer-events:none}
-.pwp-bracket::before{left:-1px;top:-1px;border-width:2px 0 0 2px;border-top-left-radius:var(--r)}
-.pwp-bracket::after{right:-1px;bottom:-1px;border-width:0 2px 2px 0;border-bottom-right-radius:var(--r)}
+.pwp-bracket::before{left:-1px;top:-1px;border-width:.125rem 0 0 .125rem;border-top-left-radius:var(--r)}
+.pwp-bracket::after{right:-1px;bottom:-1px;border-width:0 .125rem .125rem 0;border-bottom-right-radius:var(--r)}
 .pwp-bracket.danger{--bc:var(--danger)}
 
 .pwp-err{display:flex;align-items:flex-start;gap:.625rem;padding:.625rem .75rem;border-radius:var(--rs);background:rgba(255,107,107,.12);color:#ffd3d3;font-size:.8125rem}
@@ -192,14 +192,16 @@ button.pwp-row:active{transform:scale(.985)}
     g.style.opacity = '';
     const to = { x: on.offsetLeft, y: on.offsetTop, w: on.offsetWidth, h: on.offsetHeight };
     const from = memory && memory[key];
-    g.style.width = to.w + 'px';
-    g.style.height = to.h + 'px';
-    const end = `translate(${to.x}px,${to.y}px)`;
+    const rem = parseFloat(getComputedStyle(document.documentElement).fontSize) || 16;
+    const r = (px) => (px / rem).toFixed(4) + 'rem';
+    g.style.width = r(to.w);
+    g.style.height = r(to.h);
+    const end = `translate(${r(to.x)},${r(to.y)})`;
     const moved = from && (from.x !== to.x || from.y !== to.y || from.w !== to.w || from.h !== to.h);
     if (moved && g.animate) {
       g.style.transformOrigin = '0 0';
       const sp = spring();
-      g.animate([{ transform: `translate(${from.x}px,${from.y}px) scale(${from.w / to.w},${from.h / to.h})` }, { transform: end }], sp);
+      g.animate([{ transform: `translate(${r(from.x)},${r(from.y)}) scale(${from.w / to.w},${from.h / to.h})` }, { transform: end }], sp);
     }
     g.style.transform = end;
     if (memory) memory[key] = to;

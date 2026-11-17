@@ -85,6 +85,8 @@ Config.Stash = { slots = 60, weight = 500.0 }
 -- Armory tiers, each a menu choice at an armory point. minLevel: rank level 1-100. licence: a Config.Licences key or
 -- nil. catalog: item key = price ($0 = free issue). Up to 6 tiers. Example tier:
 -- { id = 'detective', label = 'Detective kit', minLevel = 30, catalog = { gunny_combatpistol = 0, ammo_9mm = 0 } }
+Config.ArmoryMaxEach = 10   -- most of one item an officer signs out in one go, 1-50 (10 covers ammo boxes)
+
 Config.Armory = {
     { id = 'patrol', label = 'Patrol kit', minLevel = 1, catalog = {
         gunny_stungun = 0, ammo_taser = 0, gunny_nightstick = 0, gunny_torch = 0, armour = 0,

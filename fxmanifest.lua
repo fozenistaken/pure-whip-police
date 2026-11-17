@@ -26,6 +26,7 @@ server_scripts {
     'server/departments.lua',
     'server/duty.lua',
     'server/licences.lua',
+    'server/station.lua',
     'server/gear.lua',
     'server/pay.lua',
     'server/contact.lua',
@@ -40,8 +41,11 @@ server_scripts {
     'server/main.lua',
 }
 
+ui_page 'html/station/index.html'
+
 client_scripts {
     'client/wardrobe.lua',
+    'client/station.lua',
     'client/contact.lua',
     'client/maptools.lua',
     'client/dispatch.lua',
@@ -49,8 +53,11 @@ client_scripts {
 }
 
 files {
+    'html/station/index.html',
+    'html/station/app.js',
     'html/mdt/module.js',
     'html/shared/bracket.js',
     'html/shared/fonts/*.woff2',
     'html/img/items/*.webp',
+    'html/img/tiers/*.webp',
 }

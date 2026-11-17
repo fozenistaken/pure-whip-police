@@ -15,13 +15,13 @@ The default points sit in GTA's own interiors. Mission Row uses GTA's `v_policeh
 
 | What | How |
 |---|---|
-| Duty | The duty desk at a station |
-| Gear | Lockers (your own), station stash, armory (tiers by rank and licence), wardrobe, fleet garage |
+| Duty | Talk to the front desk clerk in the lobby: officers clock in or out, anyone pays fines |
+| Gear | Station panels in the MDT style: lockers and stash (pockets beside the store), armory (tiers by rank and licence), wardrobe (with clothing pictures), fleet (with car pictures) |
 | Contact | Look at a person: Police → Cuff in front / behind / zip ties, Uncuff, Search. Escort and seating in a car are WHIP's own (arrow keys) |
 | MDT | F1 wheel → MDT, `/mdt`, or the phone's MDT app (on duty) |
 | Prison | `/jail <id> <months> [reason]` beside a cuffed suspect, or the MDT's charge sheet; `/unjail <id>` for prison staff |
 | Dispatch | Calls reach on-duty members of the listed jobs; respond in the MDT; panic is a key you bind (Settings → Key Bindings → FiveM → Police: panic button) |
-| Citizens | `/911 <what happened>`; pay fines at the kiosk |
+| Citizens | `/911 <what happened>`; pay fines at the front desk |
 | Command | `/pdlicence <id> <licence> [remove]`, `/callsign <1A-12>`, the penal code in the MDT |
 
 ## Swapping parts
@@ -71,7 +71,7 @@ Every export returns a result, or `false, why`.
 
 ## Assets
 
-The item pictures in `html/img/items/` are generated (Gemini).
+The pictures in `html/img/items/` and `html/img/tiers/` are generated (Gemini). Car and clothing pictures come from WHIP's media packs (whip_media_previews, whip_media_clothing_male/female).
 
 ## Tests
 

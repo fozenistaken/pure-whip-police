@@ -24,11 +24,13 @@ local function apply(ped, look)
     end
 end
 
+local worn = nil
+
 RegisterNetEvent(PWP.event('uniform'), function(dept, index)
     local ped = PlayerPedId()
     if not dept then
         if saved then apply(ped, saved) end
-        saved = nil
+        saved, worn = nil, nil
         return
     end
     local uniform = (Config.Uniforms[dept] or {})[index]
@@ -36,5 +38,15 @@ RegisterNetEvent(PWP.event('uniform'), function(dept, index)
     local look = GetEntityModel(ped) == GetHashKey('mp_f_freemode_01') and uniform.female or uniform.male
     if not look then return end
     saved = saved or snapshot(ped)
+    worn = index
     apply(ped, look)
 end)
+
+PWP.Wardrobe = {
+    worn = function() return worn end,
+    ownTop = function()
+        if saved then return saved.components[11] end
+        local ped = PlayerPedId()
+        return { GetPedDrawableVariation(ped, 11), GetPedTextureVariation(ped, 11) }
+    end,
+}
