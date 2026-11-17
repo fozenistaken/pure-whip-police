@@ -49,6 +49,7 @@ client_scripts {
 
 files {
     'html/mdt/module.js',
-    'html/mdt/fonts/*.woff2',
+    'html/shared/bracket.js',
+    'html/shared/fonts/*.woff2',
     'html/img/items/*.webp',
 }
