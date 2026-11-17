@@ -49,4 +49,5 @@ client_scripts {
 
 files {
     'html/mdt/module.js',
+    'html/img/items/*.webp',
 }
