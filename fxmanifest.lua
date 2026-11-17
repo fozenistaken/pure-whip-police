@@ -49,5 +49,6 @@ client_scripts {
 
 files {
     'html/mdt/module.js',
+    'html/mdt/fonts/*.woff2',
     'html/img/items/*.webp',
 }
