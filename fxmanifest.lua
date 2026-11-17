@@ -35,6 +35,7 @@ server_scripts {
     'server/prison.lua',
     'server/dispatch.lua',
     'server/radio.lua',
+    'server/mdt.lua',
     'server/main.lua',
 }
 
@@ -43,4 +44,9 @@ client_scripts {
     'client/contact.lua',
     'client/maptools.lua',
     'client/dispatch.lua',
+    'client/mdt.lua',
+}
+
+files {
+    'html/mdt/module.js',
 }
