@@ -5,7 +5,11 @@
   const CSS = `
 html{--design-w:70;--design-h:67.5;font-size:max(min(calc(100vh / var(--design-h)),calc(100vw / var(--design-w))),.75rem)}
 html,body{margin:0;height:100%;background:transparent;overflow:hidden}
-.st{position:fixed;background:rgba(14,16,19,.94);border-radius:.875rem;display:flex;flex-direction:column;overflow:hidden}
+#app{position:fixed;inset:0;display:flex;align-items:center;pointer-events:none}
+#app.at-right{justify-content:flex-end;padding-right:6rem}
+#app.at-right.wide{padding-right:4rem}
+#app.at-center{justify-content:center}
+.st{position:relative;pointer-events:auto;max-height:calc(100vh - 2rem);background:rgba(14,16,19,.94);border-radius:.875rem;display:flex;flex-direction:column;overflow:hidden}
 .st-head{display:flex;align-items:flex-start;gap:.75rem;padding:1.125rem 1.25rem .875rem}
 .st-head .k{display:grid;gap:.125rem;flex:1;min-width:0}
 .st-head small{font-size:.6875rem;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--faint)}
@@ -39,12 +43,12 @@ html,body{margin:0;height:100%;background:transparent;overflow:hidden}
 .art.car{width:6rem;height:3.375rem}
 .art.tier{width:2.75rem;height:2.75rem}
 
-.side{right:6rem;top:50%;width:26rem;max-height:46rem;translate:0 -50%}
+.side{width:26rem;max-height:46rem}
 .out{display:flex;align-items:center;gap:.75rem;margin:0 1.25rem .75rem;padding:.625rem .75rem;border-radius:var(--r);background:var(--panel)}
 .out .t{flex:1;min-width:0;font-weight:700;font-size:.875rem}
 .out .t .s{display:block;font-weight:500;font-size:.75rem;color:var(--mute)}
 
-.armory{right:4rem;top:50%;width:54rem;height:42rem;translate:0 -50%;display:grid;grid-template-columns:14rem minmax(0,1fr);grid-template-rows:auto minmax(0,1fr) auto}
+.armory{width:54rem;height:42rem;display:grid;grid-template-columns:14rem minmax(0,1fr);grid-template-rows:auto minmax(0,1fr) auto}
 .armory .st-head{grid-column:1/-1}
 .armory .tiers{grid-row:2/4;border-right:1px solid var(--line);padding:0 .75rem 1rem;overflow-y:auto}
 .armory .tiers .pick{padding:0}
@@ -59,7 +63,7 @@ html,body{margin:0;height:100%;background:transparent;overflow:hidden}
 .cost{font-size:.8125rem;color:var(--mute)}
 .cost b{color:var(--text)}
 
-.storage{left:50%;top:50%;width:64rem;height:44rem;translate:-50% -50%;display:grid;grid-template-rows:auto minmax(0,1fr) auto}
+.storage{width:64rem;height:44rem;display:grid;grid-template-rows:auto minmax(0,1fr) auto}
 .stores{display:grid;grid-template-columns:1fr 1fr;gap:1.25rem;padding:0 1.25rem;min-height:0}
 .store{display:flex;flex-direction:column;min-height:0}
 .store-h{display:flex;align-items:baseline;justify-content:space-between;gap:.75rem;padding:0 0 .625rem}
@@ -78,7 +82,7 @@ html,body{margin:0;height:100%;background:transparent;overflow:hidden}
 .leave{animation:st-leave .16s var(--out) both}
 @keyframes st-enter{from{opacity:0;transform:translateY(.75rem)}to{opacity:1;transform:none}}
 @keyframes st-leave{to{opacity:0;transform:translateY(.5rem)}}
-@media (max-aspect-ratio:4/3){.side,.armory{right:2rem}}
+@media (max-aspect-ratio:4/3){#app.at-right,#app.at-right.wide{padding-right:2rem}}
 @media (prefers-reduced-motion:reduce){.enter,.leave{animation-duration:.01s}}
 `;
 
@@ -152,6 +156,8 @@ html,body{margin:0;height:100%;background:transparent;overflow:hidden}
 
   function render(fresh) {
     if (!s) { root.innerHTML = ''; return; }
+    const view = viewOf(s.data.kind);
+    root.className = 'pwp ' + (view === 'storage' ? 'at-center' : view === 'armory' ? 'at-right wide' : 'at-right');
     const scrolls = [...root.querySelectorAll('.st-body,.items,.slots,.tiers')].map((n) => n.scrollTop);
     root.innerHTML = VIEWS[viewOf(s.data.kind)]();
     [...root.querySelectorAll('.st-body,.items,.slots,.tiers')].forEach((n, i) => { if (!fresh && scrolls[i]) n.scrollTop = scrolls[i]; });

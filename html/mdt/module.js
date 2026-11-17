@@ -92,7 +92,9 @@
 .mdt-table th{text-align:left;font-size:.6875rem;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--faint);padding:.375rem .5rem;border-bottom:1px solid var(--line)}
 .mdt-table td{padding:.5rem;border-bottom:1px solid var(--line);vertical-align:middle;overflow-wrap:anywhere}
 .mdt-table .r{text-align:right;white-space:nowrap}
-.mdt-wait{display:grid;place-items:center;height:100%;color:var(--faint);font-size:.875rem;padding:2rem;text-align:center}
+.mdt-wait{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:.75rem;height:100%;color:var(--mute);font-size:.9375rem;font-weight:600;padding:2rem;text-align:center}
+.mdt-wait svg{width:2.25rem;height:2.25rem;color:var(--faint)}
+.mdt>.pwp-busy{z-index:3}
 `;
 
   const STATUS = { available: 'Available', busy: 'Busy', enroute: 'En route', onscene: 'On scene' };
@@ -360,7 +362,7 @@
 
   const render = (app, phone) => {
     const s = app.state;
-    if (!s.me) return `<div class="mdt ${phone ? 'ph' : 'tab'}"><div class="mdt-wait" style="grid-column:1/-1;grid-row:1/-1">${B.esc(s.err || 'Connecting to dispatch…')}</div></div>`;
+    if (!s.me) return `<div class="pwp mdt ${phone ? 'ph' : 'tab'}"><div class="pwp-busy ${s.err ? '' : 'on'}"></div><div class="mdt-wait" style="grid-column:1/-1;grid-row:1/-1">${s.err ? B.icons.alert : B.icons.badge}<span>${B.esc(s.err || 'Connecting to dispatch')}</span></div></div>`;
     const me = s.me;
     const view = (screens[s.nav] || screens.dispatch)(app, phone);
     const callCount = (s.calls || []).length;
@@ -390,7 +392,7 @@
     root.querySelectorAll('[data-glide]').forEach((g) => B.glide(g, ctx.mem, g.dataset.glide));
     const sh = root.querySelector('.pwp-sheet');
     if (sh && !sheetWas) {
-      B.settle(sh, sh.classList.contains('pwp-from-below') ? 'translateY(102%)' : 'translateX(102%)');
+      B.settle(sh, sh.classList.contains('pwp-from-below') ? 'y' : 'x', 102);
       const scrim = root.querySelector('.pwp-scrim');
       if (scrim && scrim.animate) scrim.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 240, easing: 'cubic-bezier(.23,1,.32,1)' });
     }

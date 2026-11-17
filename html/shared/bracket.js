@@ -178,10 +178,24 @@ button.pwp-row:active{transform:scale(.985)}
     return 1 - Math.exp(-damping * w * t) * (Math.cos(wd * t) + ((damping * w) / wd) * Math.sin(wd * t));
   };
   const reduced = () => window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
-  const curve = (seconds, response, damping) => 'linear(' + Array.from({ length: 31 }, (_, i) => springAt((i * seconds) / 30, response, damping).toFixed(4)).join(',') + ',1)';
-  const SPRING = curve(0.5, 0.38, 0.86);
-  const SPRING_CALM = curve(0.42, 0.38, 1);
-  const spring = () => (reduced() ? { easing: SPRING_CALM, duration: 420 } : { easing: SPRING, duration: 500 });
+  const STEPS = 30;
+  const motion = () => (reduced() ? { seconds: 0.42, damping: 1 } : { seconds: 0.5, damping: 0.86 });
+  const progressAt = (ms) => {
+    const m = motion();
+    return ms >= m.seconds * 1000 ? 1 : springAt(ms / 1000, 0.38, m.damping);
+  };
+  const springFrames = (frameAt) => {
+    const m = motion();
+    const frames = [];
+    for (let i = 0; i <= STEPS; i++) frames.push({ offset: i / STEPS, transform: frameAt(i === STEPS ? 1 : springAt((i * m.seconds) / STEPS, 0.38, m.damping)) });
+    return { frames, duration: m.seconds * 1000 };
+  };
+  const play = (el, frameAt) => {
+    if (!el || !el.animate) return null;
+    const { frames, duration } = springFrames(frameAt);
+    return el.animate(frames, { duration, easing: 'linear' });
+  };
+  const lerp = (a, b, p) => a + (b - a) * p;
 
   const glide = (box, memory, key) => {
     if (!box) return;
@@ -191,29 +205,31 @@ button.pwp-row:active{transform:scale(.985)}
     if (!on) { g.style.opacity = '0'; return; }
     g.style.opacity = '';
     const to = { x: on.offsetLeft, y: on.offsetTop, w: on.offsetWidth, h: on.offsetHeight };
-    const from = memory && memory[key];
+    const last = memory && memory[key];
     const rem = parseFloat(getComputedStyle(document.documentElement).fontSize) || 16;
     const r = (px) => (px / rem).toFixed(4) + 'rem';
     g.style.width = r(to.w);
     g.style.height = r(to.h);
-    const end = `translate(${r(to.x)},${r(to.y)})`;
-    const moved = from && (from.x !== to.x || from.y !== to.y || from.w !== to.w || from.h !== to.h);
-    if (moved && g.animate) {
-      g.style.transformOrigin = '0 0';
-      const sp = spring();
-      g.animate([{ transform: `translate(${r(from.x)},${r(from.y)}) scale(${from.w / to.w},${from.h / to.h})` }, { transform: end }], sp);
+    g.style.transformOrigin = '0 0';
+    let from = null;
+    if (last) {
+      const p = last.from ? progressAt(performance.now() - last.t0) : 1;
+      from = last.from ? { x: lerp(last.from.x, last.x, p), y: lerp(last.from.y, last.y, p), w: lerp(last.from.w, last.w, p), h: lerp(last.from.h, last.h, p) } : last;
     }
-    g.style.transform = end;
-    if (memory) memory[key] = to;
+    const moved = from && (Math.abs(from.x - to.x) > 0.5 || Math.abs(from.y - to.y) > 0.5 || Math.abs(from.w - to.w) > 0.5 || Math.abs(from.h - to.h) > 0.5);
+    g.style.transform = `translate(${r(to.x)},${r(to.y)})`;
+    if (moved) {
+      play(g, (p) => `translate(${r(lerp(from.x, to.x, p))},${r(lerp(from.y, to.y, p))}) scale(${lerp(from.w / to.w, 1, p)},${lerp(from.h / to.h, 1, p)})`);
+    }
+    if (memory) memory[key] = moved ? { ...to, from, t0: performance.now() } : { ...to };
   };
 
-  const settle = (el, from) => {
-    if (!el || !el.animate) return;
-    el.animate([{ transform: from }, { transform: 'none' }], spring());
+  const settle = (el, axis, percent) => {
+    play(el, (p) => `translate${axis === 'y' ? 'Y' : 'X'}(${(percent * (1 - p)).toFixed(3)}%)`);
   };
 
   const esc = (v) => String(v == null ? '' : v).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const money = (n) => '$' + Math.round(Number(n) || 0).toLocaleString('en-US');
 
-  window.PWPBracket = Object.freeze({ base: BASE, fonts: FONTS, css: CSS, icons, glide, settle, spring, esc, money });
+  window.PWPBracket = Object.freeze({ base: BASE, fonts: FONTS, css: CSS, icons, glide, settle, play, esc, money });
 })();
