@@ -33,6 +33,7 @@ server_scripts {
     'server/records.lua',
     'server/fines.lua',
     'server/prison.lua',
+    'server/dispatch.lua',
     'server/main.lua',
 }
 
@@ -40,4 +41,5 @@ client_scripts {
     'client/wardrobe.lua',
     'client/contact.lua',
     'client/maptools.lua',
+    'client/dispatch.lua',
 }

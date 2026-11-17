@@ -182,3 +182,23 @@ Config.Prison = {
         { label = 'Fix the wiring', coords = vector3(1625.10, 2575.99, 45.56) },
     },
 }
+
+-- Swappable parts. 'builtin' uses this resource's own; otherwise the name of a started resource that answers the
+-- same exports: dispatch SendAlert(alert) / ClearAlert(id); radio JoinChannel(src, channel) / LeaveChannel(src,
+-- channel); mdt 'none' hides this MDT (another MDT reads records through this resource's exports).
+-- Example: Config.Providers = { dispatch = 'my_dispatch', radio = 'builtin', mdt = 'builtin' }
+Config.Providers = { dispatch = 'builtin', radio = 'builtin', mdt = 'builtin' }
+
+-- Dispatch. duration: seconds a call stays, 30-3600. maxResponders: units that may attach, 1-20. onSceneRange: metres
+-- from the call that marks a unit on scene, 5-200. shotsFired: alert police when a non-officer fires a gun.
+-- shotsCooldown: seconds before the same area alerts again, 5-600. panicJobs: other jobs that hear an officer's panic
+-- (an EMS job's key when you have one). Example: panicJobs = { 'ems' }
+Config.Dispatch = {
+    duration = 300,
+    maxResponders = 4,
+    onSceneRange = 30.0,
+    shotsFired = true,
+    shotsCooldown = 45,
+    panicJobs = {},
+    citizenCooldown = 60,   -- seconds between a citizen's /911 calls, 10-600
+}
