@@ -32,7 +32,12 @@ Whip.configPage({
                   apply = 'restart', why = 'Prompts are placed when the resource starts',
                   fields = {
                       { key = 'dept', type = 'string', label = 'Department key', maxLen = 50 },
-                      { key = 'kind', type = 'enum', label = 'Kind', options = { 'duty', 'locker', 'stash', 'armory', 'wardrobe', 'garage', 'kiosk' } },
+                      { key = 'kind', type = 'enum', label = 'Kind', options = {
+                          { value = 'duty', label = 'Duty desk' }, { value = 'locker', label = 'Own locker' },
+                          { value = 'stash', label = 'Station stash' }, { value = 'armory', label = 'Armory' },
+                          { value = 'wardrobe', label = 'Wardrobe' }, { value = 'garage', label = 'Fleet garage' },
+                          { value = 'kiosk', label = 'Fine kiosk (public)' },
+                      } },
                       { key = 'label', type = 'string', label = 'Name', maxLen = 40 },
                       { key = 'coords', type = 'vec3', label = 'Where', here = true, place = true },
                       { key = 'spawn', type = 'vec4', label = 'Car spawn (garage)', here = true, place = true },
