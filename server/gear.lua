@@ -36,7 +36,7 @@ local function lockerOf(charId)
         x = HIDDEN.x, y = HIDDEN.y, z = HIDDEN.z,
         requirements = { charIds = { charId } },
     })
-    if not def then return nil, why end
+    if not def then return false, why end
     Gear.lockers[charId] = def.containerId
     return def.containerId
 end

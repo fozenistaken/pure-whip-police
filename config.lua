@@ -148,3 +148,37 @@ Config.Contact = { reach = 2.5, zipMinutes = 10, searchSeconds = 4 }
 -- Fines. account: the bank account number fines are paid into (e.g. 'WB-123456', a business account an admin made
 -- for the city); '' sends the money nowhere. Kiosks are points of kind 'kiosk', open to everyone.
 Config.Fines = { account = '' }
+
+-- Prison (Bolingbroke). Positions from qb-prison's open config (inside spots, the gate outside, the work spots).
+-- minutesPerMonth: real minutes served per sentenced month, 0.1-60. maxMonths: the longest one sentence, 1-1200.
+-- cutPerJob: minutes one inmate job takes off, 0-30; jobCooldown: seconds before the same spot works again, 0-3600.
+-- countOffline: false = time only runs while the prisoner is online. keepItems: item keys a prisoner keeps.
+-- zone: the box a prisoner may not leave (centre, size in metres, heading). Example: keepItems = { 'phone' }
+Config.Prison = {
+    minutesPerMonth = 1.0,
+    maxMonths = 300,
+    cutPerJob = 2,
+    jobCooldown = 120,
+    countOffline = false,
+    keepItems = {},
+    zone = { pos = vector3(1677.5, 2570.0, 45.0), size = vector3(305.0, 260.0, 60.0), heading = 0.0 },
+    release = vector4(1848.13, 2586.05, 45.67, 269.5),
+    booking = vector3(1845.90, 2585.87, 45.67),
+    spawns = {
+        vector4(1661.05, 2524.68, 45.56, 260.5), vector4(1650.81, 2540.58, 45.56, 230.4),
+        vector4(1654.96, 2545.54, 45.56, 230.4), vector4(1697.11, 2525.56, 45.56, 187.2),
+        vector4(1673.08, 2519.82, 45.56, 229.5), vector4(1666.03, 2511.37, 45.56, 233.9),
+        vector4(1691.23, 2509.64, 45.56, 52.4), vector4(1770.59, 2536.06, 45.56, 258.1),
+        vector4(1792.45, 2584.37, 45.56, 276.2), vector4(1768.33, 2566.08, 45.56, 176.8),
+        vector4(1696.09, 2469.40, 45.56, 1.4),
+    },
+    jobs = {
+        { label = 'Fix the wiring', coords = vector3(1761.46, 2540.41, 45.56) },
+        { label = 'Fix the wiring', coords = vector3(1718.54, 2527.80, 45.56) },
+        { label = 'Fix the wiring', coords = vector3(1700.20, 2474.81, 45.56) },
+        { label = 'Fix the wiring', coords = vector3(1664.83, 2501.58, 45.56) },
+        { label = 'Fix the wiring', coords = vector3(1621.62, 2509.30, 45.56) },
+        { label = 'Fix the wiring', coords = vector3(1627.94, 2538.39, 45.56) },
+        { label = 'Fix the wiring', coords = vector3(1625.10, 2575.99, 45.56) },
+    },
+}

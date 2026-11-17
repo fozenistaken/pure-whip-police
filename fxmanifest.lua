@@ -17,6 +17,7 @@ shared_scripts {
     'shared/util.lua',
     'shared/catalogue.lua',
     'shared/records_logic.lua',
+    'shared/sentence.lua',
 }
 
 server_scripts {
@@ -31,6 +32,7 @@ server_scripts {
     'data/penal_code.lua',
     'server/records.lua',
     'server/fines.lua',
+    'server/prison.lua',
     'server/main.lua',
 }
 
