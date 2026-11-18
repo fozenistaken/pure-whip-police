@@ -38,6 +38,11 @@ Config.Stations = {
 }
 Config.StationSprite = 60   -- GTA blip sprite for stations (60 police star, 526 sheriff badge)
 
+-- Fleet (garage) points: a map blip only the department's members see, on duty or not. sprite: GTA blip icon
+-- (357 garage, 56 police car). seeFrom: metres WHIP's prompt shows from, 1-25 (25 is WHIP's limit unless
+-- whip_core's Config.InteractVisibleRange is raised). Example: Config.Fleet = { sprite = 56, seeFrom = 15.0 }
+Config.Fleet = { sprite = 357, seeFrom = 25.0 }
+
 -- Prompts in the world. kind: front (the lobby desk: officers clock in and out, anyone pays fines; clerk = where its
 -- NPC stands and faces, vector4, or nil for a plain prompt; model = that NPC, nil for Config.FrontDesk.model),
 -- duty (go on and off duty only), locker (own locker), stash (shared station stash), armory, wardrobe,

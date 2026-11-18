@@ -22,6 +22,7 @@ local function addPoint(row, def)
         audience = def.public and 'everyone' or { job = dept },
         require = def.public and def.require or mergeRequire(dept, def.require),
         reach = Config.PointReach,
+        seeFrom = def.seeFrom,
         options = options,
         onUse = function(source, use) return def.onUse(source, dept, row, use) end,
     })
