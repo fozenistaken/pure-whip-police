@@ -75,7 +75,31 @@ function H.person(_, _, a)
     decorate(row.notes or {}, 'authorCharId', 'author')
     row.vehicles = MySQL.query.await('SELECT `vehicleId`, `model`, `plate`, `state` FROM `vehicles` WHERE `ownerCharId` = ? LIMIT 20', { charId }) or {}
     row.online = sourceOf(charId) ~= nil
+    row.samples = PWP.EvidenceServer.samplesOf(charId)
     return row
+end
+
+H.takeSamples = { perm = 'records', fn = function(src, _, a)
+    local target = sourceOf(num(a.charId))
+    if not target then return false, 'They are not in town' end
+    local got, why = PWP.EvidenceServer.takeSamples(src, target)
+    if not got then return false, why end
+    Whip.core:LogActivity(src, 'samples_taken', { detail = ('charId %d'):format(got.charId) })
+    return got
+end }
+
+function H.evidence(_, _, a)
+    local q = str(a.q, 32)
+    if not q then return { rows = {} } end
+    q = q:upper()
+    local rows = PWP.EvidenceServer.search(q)
+    local owner = PWP.EvidenceServer.ownerOf(q)
+    for _, r in ipairs(rows) do
+        r.owner = r.code and PWP.EvidenceServer.ownerOf(r.code) or nil
+        r.gunName = r.gun and (Whip.core:GetItemDef(r.gun) or {}).name or r.gun
+    end
+    decorate(rows, 'owner', 'ownerName')
+    return { rows = rows, owner = owner, ownerName = owner and names({ owner })[owner] or nil }
 end
 
 function H.vehicles(_, _, a)

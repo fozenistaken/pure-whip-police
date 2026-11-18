@@ -46,7 +46,8 @@ Config.FleetPoints = { sprite = 357, seeFrom = 25.0 }
 -- Prompts in the world. kind: front (the lobby desk: officers clock in and out, anyone pays fines; clerk = where its
 -- NPC stands and faces, vector4, or nil for a plain prompt; model = that NPC, nil for Config.FrontDesk.model),
 -- duty (go on and off duty only), locker (own locker), stash (shared station stash), armory, wardrobe,
--- garage (fleet cars; spawn = where the car appears, vector4), kiosk (anyone pays their fines, no clerk).
+-- garage (fleet cars; spawn = where the car appears, vector4), kiosk (anyone pays their fines, no clerk),
+-- evidence (the department evidence locker and the lab).
 -- The defaults sit in GTA's own interiors: Mission Row is GTA's v_policehub (desk, armoury gate, corridor, office);
 -- the sheriff desks and the parking spots come from qb-policejob, qbx_police and the Vertexlabs duty system. On a
 -- custom map (an MLO), move them with /whip -> Settings -> Police -> Points -> Place. Example:
@@ -59,6 +60,7 @@ Config.Points = {
     { dept = 'lspd', kind = 'locker', label = 'Lockers', coords = vector3(455.24, -985.19, 31.00) },
     { dept = 'lspd', kind = 'wardrobe', label = 'Wardrobe', coords = vector3(451.72, -989.32, 30.69) },
     { dept = 'lspd', kind = 'stash', label = 'Station stash', coords = vector3(451.70, -973.23, 30.69) },
+    { dept = 'lspd', kind = 'evidence', label = 'Evidence room', coords = vector3(451.70, -973.23, 30.69) },
     { dept = 'lspd', kind = 'garage', label = 'Fleet', coords = vector3(448.16, -1017.41, 28.56),
       spawn = vector4(463.0, -1015.0, 28.0, 87.0) },
     { dept = 'bcso', kind = 'duty', label = 'Duty desk', coords = vector3(1852.45, 3689.65, 34.27) },
@@ -95,6 +97,7 @@ Config.ArmoryMaxEach = 10   -- most of one item an officer signs out in one go, 
 Config.Armory = {
     { id = 'patrol', label = 'Patrol kit', minLevel = 1, catalog = {
         gunny_stungun = 0, ammo_taser = 0, gunny_nightstick = 0, gunny_torch = 0, armour = 0,
+        ['pure-whip-police_evidence_bags'] = 0,
     } },
     { id = 'sidearm', label = 'Sidearm', minLevel = 10, catalog = {
         gunny_combatpistol = 0, gunny_mag_combatpistol = 0, ammo_9mm = 0,
@@ -158,6 +161,29 @@ Config.Pay = {
 -- Cuffs and searches. reach: metres from the suspect, 1-5. zipMinutes: zip ties fall off after this, 1-60.
 -- searchSeconds: the search bar, 1-20. Escort, seating in a car and pulling out are WHIP's own (arrow keys).
 Config.Contact = { reach = 2.5, zipMinutes = 10, searchSeconds = 4 }
+
+-- Evidence. Casings come from whip_gunny's shots, blood from deaths and injuries, prints from drawing a gun or
+-- driving or lockpicking a car. Officers collect with evidence bags; the lab at an evidence point reads them.
+--   casingMinutes, markMinutes: how long casings / blood and bullet holes stay, 5-720.
+--   burstMetres, burstSeconds: one gun's shots this close in place and time land as one casing pile, 1-50 / 1-120.
+--   areaMetres, perArea: at most this many marks of one kind within this distance (oldest goes first), 10-200 / 5-200.
+--   printsKept: prints a gun or car remembers, newest first, 1-10.
+--   hurtSeconds: least time between blood drops from one injured player, 5-120.
+--   hitMetres: farthest a reported bullet hit may be from where its shooter stood, 20-500.
+--   labSeconds: the lab bar, 2-60. reach: metres to take prints and DNA from a cuffed person, 1-5.
+--   locker: the department evidence locker at evidence points, slots 1-500 and weight kg 1-5000.
+-- Example: Config.Evidence = { enabled = true, casingMinutes = 30, ... } (every key above is required)
+Config.Evidence = {
+    enabled = true,
+    casingMinutes = 60, markMinutes = 60,
+    burstMetres = 10.0, burstSeconds = 30,
+    areaMetres = 50.0, perArea = 40,
+    printsKept = 3,
+    hurtSeconds = 15,
+    hitMetres = 150.0,
+    labSeconds = 8, reach = 2.5,
+    locker = { slots = 120, weight = 500.0 },
+}
 
 -- Fines. account: the bank account number fines are paid into (e.g. 'WB-123456', a business account an admin made
 -- for the city); nil sends the money nowhere. Kiosks are points of kind 'kiosk', open to everyone.

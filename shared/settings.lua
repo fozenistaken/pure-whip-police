@@ -38,6 +38,7 @@ Whip.configPage({
                           { value = 'stash', label = 'Station stash' }, { value = 'armory', label = 'Armory' },
                           { value = 'wardrobe', label = 'Wardrobe' }, { value = 'garage', label = 'Fleet garage' },
                           { value = 'kiosk', label = 'Fine kiosk (public)' },
+                          { value = 'evidence', label = 'Evidence room (locker and lab)' },
                       } },
                       { key = 'label', type = 'string', label = 'Name', maxLen = 40 },
                       { key = 'coords', type = 'vec3', label = 'Where', here = true, place = true },

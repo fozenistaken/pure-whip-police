@@ -23,6 +23,8 @@ The default points sit in GTA's own interiors. Mission Row uses GTA's `v_policeh
 | Dispatch | Calls reach on-duty members of the listed jobs; respond in the MDT; panic is a key you bind (Settings → Key Bindings → FiveM → Police: panic button) |
 | Citizens | `/911 <what happened>`; pay fines at the front desk |
 | Command | `/pdlicence <id> <licence> [remove]`, `/callsign <1A-12>`, the penal code in the MDT |
+| Evidence | Shots leave casings (gun serial inside), injuries and deaths leave blood, bullets leave holes, drawn guns and driven or lockpicked cars keep prints. Officers collect with evidence bags (armory, Patrol kit): pick up casings and right-click Bag as evidence, Swab blood, Dig out a round, Dust a car's driver door, right-click a seized gun → Bag as evidence. The evidence room point holds the locker (every move logged) and the lab (reads every unread bag in your pockets). The MDT search finds serials and DNA or print codes; a person's Evidence tab takes prints and DNA from them while cuffed beside you |
+| Cleaning up | A cleaning cloth wipes the gun in your hand (use it), a car's driver door, and blood |
 
 ## Swapping parts
 
@@ -57,6 +59,9 @@ Every export returns a result, or `false, why`.
 | `SendAlert({ jobs, code, title, info, coords, priority, maxResponders, duration })` | alert id; works for any job (`jobs = { 'ems' }`) |
 | `ClearAlert(id)` / `GetAlerts(job?)` / `GetUnits()` / `SetUnitStatus(src, status)` | `true` / list / list / `true` |
 | `GetRadioChannel(dept)` | the department's channel name |
+| `CreateEvidence('blood'│'hole'│'casing', coords, { charId │ serial, gun?, amount? })` | point id, or `true` for casings |
+| `GetEvidenceNear(coords, radius?)` | `{ kind, coords, at }[]` |
+| `GetForensicCodes(charId)` / `FindCodeOwner(code)` | `{ dna, print }` / charId (only after their samples were taken) |
 
 ## Events (server)
 
@@ -68,6 +73,7 @@ Every export returns a result, or `false, why`.
 - `warrant`, `bolo`, `report`
 - `alert`, `panic`, `unitStatus`
 - `licenceChanged`
+- `evidenceCreated`, `evidenceCollected`, `evidenceAnalysed`
 
 ## Assets
 

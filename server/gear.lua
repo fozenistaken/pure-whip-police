@@ -80,6 +80,7 @@ local storage = {
         end,
     },
 }
+Gear.storage, Gear.onDutyAt, Gear.HIDDEN = storage, onDutyAt, HIDDEN
 
 Station.kind('locker', {
     build = function(src, session)

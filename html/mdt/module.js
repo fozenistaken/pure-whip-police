@@ -109,7 +109,8 @@
   const STATUS = { available: 'Available', busy: 'Busy', enroute: 'En route', onscene: 'On scene' };
   const CAT = { infraction: 'Infraction', misdemeanor: 'Misdemeanor', felony: 'Felony' };
   const NAV = [['dispatch', 'Dispatch', 'dispatch'], ['records', 'Records', 'records'], ['reports', 'Reports', 'report'], ['wanted', 'Wanted', 'wanted'], ['command', 'Command', 'command']];
-  const RTABS = [['overview', 'Overview'], ['history', 'History'], ['vehicles', 'Vehicles'], ['notes', 'Notes']];
+  const RTABS = [['overview', 'Overview'], ['history', 'History'], ['vehicles', 'Vehicles'], ['notes', 'Notes'], ['evidence', 'Evidence']];
+  const EVKIND = { casing: 'Casing', fragment: 'Round', blood: 'Blood', prints: 'Prints', gun: 'Gun' };
   const SHEET_TITLE = { note: 'Add a note', bolo: 'Look out for', warrant: 'Issue a warrant', plate: 'Look out for a plate', penal: 'Add or change a charge' };
 
   let B = null;
@@ -250,15 +251,19 @@
       const s = app.state;
       if (s.person) return screens.person(app);
       const r = s.results;
-      if (!r) return { body: head('Records') + scroll('<div class="pwp-empty">Search a name, citizen ID, plate or report number above.</div>', 'records') };
+      if (!r) return { body: head('Records') + scroll('<div class="pwp-empty">Search a name, citizen ID, plate, report number, gun serial or a DNA or print code above.</div>', 'records') };
       const people = r.people.length ? r.people.map((p) => `<button class="pwp-row" data-act="openPerson" data-id="${p.charId}"><span class="pwp-code">${p.charId}</span><span class="t">${B.esc(p.firstName)} ${B.esc(p.lastName)}<span class="s">Born ${B.esc(day(p.dateOfBirth))} · ${B.esc(p.gender)}</span></span>${p.warrant ? '<span class="pwp-flag danger">Wanted</span>' : ''}</button>`).join('') : '';
       const cars = r.vehicles.length ? r.vehicles.map((v) => `<div class="pwp-row"><span class="pwp-plate">${B.esc(v.plate)}</span><span class="t">${B.esc(v.model)}<span class="s">${v.bolo ? 'BOLO: ' + B.esc(v.bolo.reason) : B.esc(v.owner || 'Owner #' + v.ownerCharId) + ' · ' + B.esc(v.state)}</span></span><span class="acts">${!v.bolo && perms(app).records ? `<button class="pwp-btn sm pwp-press" data-act="openSheet" data-k="plate" data-plate="${B.esc(v.plate)}">BOLO</button>` : ''}<button class="pwp-btn sm pwp-press" data-act="openPerson" data-id="${v.ownerCharId}">Owner</button></span></div>`).join('') : '';
       const reps = r.reports.length ? r.reports.map(reportRow).join('') : '';
-      const none = !people && !cars && !reps;
+      const ev = r.evidence || { rows: [] };
+      const match = ev.owner ? `<button class="pwp-row" data-act="openPerson" data-id="${ev.owner}"><span class="pwp-code">${ev.owner}</span><span class="t">${B.esc(ev.ownerName || 'Person ' + ev.owner)}<span class="s">Sample on file matches</span></span></button>` : '';
+      const found = ev.rows.map((e) => `<div class="pwp-row"><span class="pwp-code">${B.esc(EVKIND[e.kind] || e.kind)}</span><span class="t">${B.esc(e.code || e.serial || 'No marks')}<span class="s">${[e.gunName, e.foundAt ? when(e.foundAt) : '', String(e.dept || '').toUpperCase()].filter(Boolean).map(B.esc).join(' · ')}</span></span><span class="acts">${e.owner && e.owner !== ev.owner ? `<button class="pwp-btn sm pwp-press" data-act="openPerson" data-id="${e.owner}">${B.esc(e.ownerName || 'Person')}</button>` : ''}${e.x != null ? `<button class="pwp-btn sm pwp-press" data-act="evWaypoint" data-x="${e.x}" data-y="${e.y}">Waypoint</button>` : ''}</span></div>`).join('');
+      const none = !people && !cars && !reps && !match && !found;
       return { body: head(`Results for “${s.lastQ}”`) + scroll(none ? '<div class="pwp-empty">Nothing matches that search.</div>' : `
         ${people ? `<section class="pwp-card"><p class="pwp-lbl">People</p>${people}</section>` : ''}
         ${cars ? `<section class="pwp-card"><p class="pwp-lbl">Vehicles</p>${cars}</section>` : ''}
-        ${reps ? `<section class="pwp-card"><p class="pwp-lbl">Reports</p>${reps}</section>` : ''}`, 'results') };
+        ${reps ? `<section class="pwp-card"><p class="pwp-lbl">Reports</p>${reps}</section>` : ''}
+        ${match || found ? `<section class="pwp-card"><p class="pwp-lbl">Evidence</p>${match}${found}</section>` : ''}`, 'results') };
     },
 
     person(app) {
@@ -275,6 +280,7 @@
         history: () => `<section class="pwp-card"><p class="pwp-lbl">Reports</p>${(p.reports || []).length ? p.reports.map((r) => `<button class="pwp-row" data-act="openReport" data-id="${r.id}"><span class="pwp-code">#${r.id}</span><span class="t">${B.esc(r.title)}<span class="s">${when(r.createdAt)}</span></span></button>`).join('') : '<div class="pwp-empty">Not named in any report</div>'}</section>
           <section class="pwp-card"><p class="pwp-lbl">Fines</p>${(p.fines || []).length ? p.fines.map((f) => `<div class="pwp-row"><span class="t">${B.esc(f.reason || 'Fine')}<span class="s">${when(f.createdAt)}</span></span><span class="num">${B.money(f.amount)}</span><span class="pwp-flag ${f.status === 'unpaid' ? 'warn' : ''}">${B.esc(f.status)}</span></div>`).join('') : '<div class="pwp-empty">No fines</div>'}</section>`,
         vehicles: () => `<section class="pwp-card"><p class="pwp-lbl">Registered vehicles</p>${(p.vehicles || []).length ? p.vehicles.map((v) => `<div class="pwp-row"><span class="pwp-plate">${B.esc(v.plate)}</span><span class="t">${B.esc(v.model)}<span class="s">${B.esc(v.state)}</span></span>${pm.records ? `<button class="pwp-btn sm pwp-press" data-act="openSheet" data-k="plate" data-plate="${B.esc(v.plate)}">BOLO</button>` : ''}</div>`).join('') : '<div class="pwp-empty">No registered vehicles</div>'}</section>`,
+        evidence: () => `<section class="pwp-card"><p class="pwp-lbl">Samples on file</p>${p.samples ? `<div class="pwp-row"><span class="t">DNA<span class="s">Taken ${when(p.samples.takenAt)}</span></span><span class="pwp-code">${B.esc(p.samples.dna)}</span></div><div class="pwp-row"><span class="t">Prints</span><span class="pwp-code">${B.esc(p.samples.print)}</span></div>` : `<div class="pwp-empty">No samples taken</div>${pm.records && p.online ? '<button class="pwp-btn pwp-press" data-act="takeSamples">Take prints and DNA</button>' : ''}`}</section>`,
         notes: () => `<section class="pwp-card"><p class="pwp-lbl">Notes</p>${(p.notes || []).length ? p.notes.map((n) => `<div class="pwp-row"><span class="t">${B.esc(n.text)}<span class="s">${B.esc(n.author || '')} · ${when(n.createdAt)}</span></span></div>`).join('') : '<div class="pwp-empty">No notes</div>'}</section>`,
       };
       const canCharge = pm.fine || pm.jail;
@@ -408,7 +414,7 @@
     const nav = `<nav class="mdt-nav" data-glide="nav" aria-label="Sections">${navFor(app).map(([id, label, icon]) => `<button class="${s.nav === id ? 'on' : ''}" data-act="nav" data-t="${id}" aria-current="${s.nav === id ? 'page' : 'false'}">${B.icons[icon]}${label}${phone && id === 'dispatch' && s.nav !== 'dispatch' && callCount ? `<span class="n">${callCount}</span>` : ''}</button>`).join('')}</nav>`;
     const top = `<header class="mdt-top"><span class="mdt-cs">${B.esc(me.callsign || '')}</span><div class="mdt-who"><b>${B.esc(me.name || '')}</b><span>${B.esc([me.rank, me.short].filter(Boolean).join(' · '))}</span></div>
       ${statusSeg(app)}
-      <label class="pwp-search">${B.icons.search}<input id="f-q" data-bind="q" data-enter="search" value="${val(app, 'q')}" placeholder="Search name, citizen ID, plate or report #" autocomplete="off">${phone ? '' : '<span class="pwp-kbd">/</span>'}</label></header>`;
+      <label class="pwp-search">${B.icons.search}<input id="f-q" data-bind="q" data-enter="search" value="${val(app, 'q')}" placeholder="Search name, ID, plate, report # or evidence" autocomplete="off">${phone ? '' : '<span class="pwp-kbd">/</span>'}</label></header>`;
     const main = `<main class="mdt-main"><div class="pwp-busy ${s.busyShown ? 'on' : ''}"></div><div class="mdt-view">${s.sheet ? '' : errBar(app)}${view.body}</div>${view.act ? `<div class="mdt-act">${view.act}</div>` : ''}${sheet(app, phone)}</main>`;
     if (phone) return `<div class="pwp mdt ph">${top}${main}${nav}</div>`;
     return `<div class="pwp mdt tab">${top}${nav}${main}<aside class="mdt-side"><p class="pwp-lbl">Live calls</p><div class="mdt-calls">${callList(app)}</div></aside></div>`;
@@ -554,12 +560,13 @@
       s.nav = 'records'; s.person = null; s.edit = null; s.sheet = null; s.lastQ = q;
       const rep = /^#\s*(\d+)$/.exec(q);
       if (rep) { await actions.openReport(app, { id: rep[1] }); return; }
-      const out = { people: [], vehicles: [], reports: [] };
+      const out = { people: [], vehicles: [], reports: [], evidence: { rows: [] } };
       await ask(app, 'people', { q }, (r) => { out.people = r || []; });
       if (q.length <= 8) await ask(app, 'vehicles', { q }, (r) => { out.vehicles = r || []; });
       await ask(app, 'reports', { q }, (r) => { out.reports = r || []; });
+      if (/^\S{6,32}$/.test(q)) await ask(app, 'evidence', { q }, (r) => { out.evidence = r || { rows: [] }; });
       s.results = out;
-      if (out.people.length === 1 && !out.vehicles.length && !out.reports.length) await actions.openPerson(app, { id: out.people[0].charId });
+      if (out.people.length === 1 && !out.vehicles.length && !out.reports.length && !out.evidence.rows.length && !out.evidence.owner) await actions.openPerson(app, { id: out.people[0].charId });
     },
     async openPerson(app, d) {
       const s = app.state;
@@ -567,6 +574,11 @@
       await reloadPerson(app, Number(d.id));
     },
     closePerson(app) { app.state.person = null; app.state.charges = {}; },
+    async takeSamples(app) {
+      const p = app.state.person;
+      await ask(app, 'takeSamples', { charId: p.charId }, async () => { app.toast('Prints and DNA taken'); await reloadPerson(app, p.charId); });
+    },
+    async evWaypoint(app, d) { await ask(app, 'waypoint', { x: Number(d.x), y: Number(d.y) }, () => app.toast('Waypoint set')); },
     rtab(app, d) { app.state.rtab = d.t; app.state.fadeTab = true; },
     openSheet(app, d) {
       const s = app.state;
