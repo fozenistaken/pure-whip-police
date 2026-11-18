@@ -108,7 +108,7 @@ function H.vehicles(_, _, a)
     local rows = MySQL.query.await('SELECT `vehicleId`, `ownerCharId`, `model`, `plate`, `state` FROM `vehicles` WHERE `plate` LIKE ? LIMIT 25',
         { '%' .. q:upper() .. '%' }) or {}
     decorate(rows, 'ownerCharId', 'owner')
-    for _, r in ipairs(rows) do r.bolo = R.boloForPlate(r.plate) end
+    for _, r in ipairs(rows) do r.bolo, r.seen = R.boloForPlate(r.plate), PWP.Traffic.lastSeen(r.plate) end
     return rows
 end
 

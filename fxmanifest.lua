@@ -19,6 +19,7 @@ shared_scripts {
     'shared/records_logic.lua',
     'shared/sentence.lua',
     'shared/evidence_logic.lua',
+    'shared/traffic_logic.lua',
 }
 
 server_scripts {
@@ -39,6 +40,7 @@ server_scripts {
     'server/dispatch.lua',
     'server/radio.lua',
     'server/evidence.lua',
+    'server/traffic.lua',
     'server/mdt.lua',
     'server/main.lua',
 }
@@ -53,6 +55,7 @@ client_scripts {
     'client/dispatch.lua',
     'client/mdt.lua',
     'client/evidence.lua',
+    'client/traffic.lua',
 }
 
 files {

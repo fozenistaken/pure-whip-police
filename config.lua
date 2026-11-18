@@ -185,6 +185,20 @@ Config.Evidence = {
     locker = { slots = 120, weight = 500.0 },
 }
 
+-- Traffic radar and plate reader in any car, for on-duty officers (F1 wheel -> Radar, or bind "Police: radar").
+--   unit: 'kmh' or 'mph'. range: metres it reads ahead and behind, 20-200. readMs: time between reads, 100-2000.
+--   seenSeconds: one officer logs the same plate again only after this, 10-3600.
+-- Example: Config.Radar = { unit = 'mph', range = 60.0, readMs = 300, seenSeconds = 120 }
+Config.Radar = { unit = 'kmh', range = 80.0, readMs = 250, seenSeconds = 60 }
+
+-- Speed cameras. Each: label, coords (where it watches), radius (metres, 10-60, wide enough for one check while a
+-- car passes: about 1 s at speed), limit and tolerance (in Config.Radar.unit), fine ($). blips: show them on the map.
+-- The fine goes to the car's registered owner, or the driver of an unowned car; on-duty officers with sirens pass.
+-- Place them in game: /whip -> Settings -> Police -> Speed cameras -> Here. Example:
+-- { label = 'Del Perro Freeway', coords = vector3(-1100.0, -650.0, 19.0), radius = 25.0, limit = 120, tolerance = 5, fine = 250 }
+Config.SpeedCameras = {}
+Config.SpeedCameraBlips = true   -- true shows every speed camera on the map for everyone
+
 -- Fines. account: the bank account number fines are paid into (e.g. 'WB-123456', a business account an admin made
 -- for the city); nil sends the money nowhere. Kiosks are points of kind 'kiosk', open to everyone.
 Config.Fines = { account = nil }
