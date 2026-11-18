@@ -199,6 +199,19 @@ Config.Radar = { unit = 'kmh', range = 80.0, readMs = 250, seenSeconds = 60 }
 Config.SpeedCameras = {}
 Config.SpeedCameraBlips = true   -- true shows every speed camera on the map for everyone
 
+-- CCTV cameras. Each: label, coords (the lens), heading (degrees the camera faces, 0-360), pitch (degrees, -60 to 10;
+-- below 0 looks down), fov (degrees, 20-90). Officers watch them from the MDT (Dispatch -> Board -> Cameras). They
+-- log what happens in front of them (shots, blood, speeding, plates that pass) and can be cut with a lockpick.
+-- Place them in game: /whip -> Settings -> Police -> CCTV cameras -> Here (stand where the lens should be).
+-- Example: { label = 'Legion Square', coords = vector3(195.2, -933.8, 33.0), heading = 140.0, pitch = -20.0, fov = 60.0 }
+Config.Cameras = {}
+
+-- Camera and body cam feeds. seeMetres: how far a camera logs what happens, 10-150. darkMinutes: how long a cut camera
+-- stays dark unless an officer repairs it, 1-240. plateSeconds: how often cameras read passing plates, 2-30.
+-- bodycam: true turns the bodycam resource's first-person view on while an officer is on duty (needs the 'bodycam'
+-- resource); false leaves each player's own choice. Example: Config.Feeds = { seeMetres = 50.0, darkMinutes = 60, plateSeconds = 5, bodycam = true }
+Config.Feeds = { seeMetres = 60.0, darkMinutes = 30, plateSeconds = 4, bodycam = false }
+
 -- Fines. account: the bank account number fines are paid into (e.g. 'WB-123456', a business account an admin made
 -- for the city); nil sends the money nowhere. Kiosks are points of kind 'kiosk', open to everyone.
 Config.Fines = { account = nil }

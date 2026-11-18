@@ -41,6 +41,7 @@ server_scripts {
     'server/radio.lua',
     'server/evidence.lua',
     'server/traffic.lua',
+    'server/feeds.lua',
     'server/mdt.lua',
     'server/main.lua',
 }
@@ -56,6 +57,7 @@ client_scripts {
     'client/mdt.lua',
     'client/evidence.lua',
     'client/traffic.lua',
+    'client/feeds.lua',
 }
 
 files {

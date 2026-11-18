@@ -27,14 +27,17 @@ function Traffic.lastSeen(plate)
         :format(TABLE), { plate })
 end
 
-local function remember(src, plate, c)
-    local key = src .. ':' .. plate
+function Traffic.sight(key, plate, c, byCharId)
     local now = os.time()
     if Traffic.seen[key] and now - Traffic.seen[key] < Config.Radar.seenSeconds then return false end
     Traffic.seen[key] = now
     MySQL.query.await(('INSERT INTO `%s` (`plate`, `x`, `y`, `z`, `seenBy`) VALUES (?, ?, ?, ?, ?) ON DUPLICATE KEY UPDATE `x` = VALUES(`x`), `y` = VALUES(`y`), `z` = VALUES(`z`), `seenBy` = VALUES(`seenBy`), `seenAt` = CURRENT_TIMESTAMP')
-        :format(TABLE), { plate, c.x, c.y, c.z, Whip.core:GetCharId(src) })
+        :format(TABLE), { plate, c.x, c.y, c.z, byCharId })
     return true
+end
+
+local function remember(src, plate, c)
+    return Traffic.sight(src .. ':' .. plate, plate, c, Whip.core:GetCharId(src))
 end
 
 local function read(src, netId)

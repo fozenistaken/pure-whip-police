@@ -284,6 +284,9 @@ function H.waypoint(src, dept, a)
     return false, 'That call is over'
 end
 
+H.feeds = { perm = 'records', fn = function() return PWP.Feeds.list() end }
+H.watch = { perm = 'records', fn = function(src, _, a) return PWP.Feeds.watch(src, a) end }
+
 H.prisoners = { perm = 'prison_staff', fn = function()
     local rows = MySQL.query.await("SELECT `charId`, `months`, `minutesLeft`, `reason`, `createdAt` FROM `pure_whip_police_sentences` WHERE `status` = 'active' ORDER BY `id` DESC LIMIT 100") or {}
     for _, r in ipairs(rows) do

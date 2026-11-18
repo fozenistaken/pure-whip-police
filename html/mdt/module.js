@@ -172,7 +172,7 @@
     }
   };
 
-  const shown = (s) => JSON.stringify([s.nav, s.penal && s.penal.length, s.calls, s.units, s.recent, s.reports, s.warrants, s.bolos, s.prisoners, s.err]);
+  const shown = (s) => JSON.stringify([s.nav, s.penal && s.penal.length, s.calls, s.units, s.recent, s.reports, s.warrants, s.bolos, s.prisoners, s.feeds, s.err]);
 
   const load = async (app) => {
     const s = app.state;
@@ -180,6 +180,7 @@
     const jobs = [];
     if (!s.penal) jobs.push(ask(app, 'penal', {}, (r) => { s.penal = r; }, true));
     if (s.nav === 'dispatch') jobs.push(ask(app, 'dashboard', {}, (r) => { s.calls = r.calls; s.units = r.units; s.recent = r.reports; }, true));
+    if (s.nav === 'dispatch' && s.dview === 'board' && perms(app).records) jobs.push(ask(app, 'feeds', {}, (r) => { s.feeds = r; }, true));
     else jobs.push(ask(app, 'calls', {}, (r) => { s.calls = r.calls; s.units = r.units; }, true));
     if (s.nav === 'reports' && !s.edit) jobs.push(ask(app, 'reports', { q: '' }, (r) => { s.reports = r; }, true));
     if (s.nav === 'wanted') {
@@ -225,6 +226,16 @@
     return u.map((x) => `<div class="pwp-row"><span class="pwp-code" style="color:var(--text)">${B.esc(x.callsign)}</span><span class="t">${B.esc((x.dept || '').toUpperCase())}${x.callsign === me ? '<span class="s">You</span>' : ''}</span><span class="pwp-flag ${x.status === 'available' ? 'ok' : x.status === 'busy' ? 'warn' : 'route'}">${STATUS[x.status] || B.esc(x.status)}</span></div>`).join('');
   };
 
+  const feedRows = (app) => {
+    const f = app.state.feeds;
+    if (!f) return '';
+    const last = (log) => (log && log[0] ? B.esc(log[0].text) + ' · ' + when(log[0].at) : 'Nothing logged');
+    const cams = f.cameras.length ? f.cameras.map((c) => `<div class="pwp-row" data-key="cam${c.id}"><span class="pwp-code">${String(c.id).padStart(2, '0')}</span><span class="t">${B.esc(c.label)}<span class="s">${last(c.log)}</span></span>${c.dark ? '<span class="pwp-flag danger">Dark</span>' : `<button class="pwp-btn sm pwp-press" data-act="watch" data-k="cam" data-id="${c.id}">Watch</button>`}</div>`).join('') : '<div class="pwp-empty">No cameras placed yet (Settings → Police → CCTV cameras)</div>';
+    const me = (app.state.me || {}).callsign;
+    const units = f.units.filter((u) => u.callsign !== me).map((u) => `<div class="pwp-row" data-key="bc${u.source}"><span class="pwp-code" style="color:var(--text)">${B.esc(u.callsign)}</span><span class="t">${B.esc((u.dept || '').toUpperCase())}<span class="s">${last(u.log)}</span></span><button class="pwp-btn sm pwp-press" data-act="watch" data-k="unit" data-id="${u.source}">Body cam</button></div>`).join('');
+    return `<section class="pwp-card"><p class="pwp-lbl">Cameras</p>${cams}</section>${units ? `<section class="pwp-card"><p class="pwp-lbl">Body cams</p>${units}</section>` : ''}`;
+  };
+
   const reportRow = (r) => `<button class="pwp-row" data-act="openReport" data-id="${r.id}"><span class="pwp-code">#${r.id}</span><span class="t">${B.esc(r.title)}<span class="s">${B.esc((r.dept || '').toUpperCase())} · ${when(r.createdAt)}</span></span>${r.status === 'closed' ? '<span class="pwp-flag">Closed</span>' : ''}</button>`;
 
   const head = (title, back, extra) => `<div class="mdt-h">${back ? `<button class="pwp-btn ghost pwp-press" data-act="${back}">${B.icons.back}Back</button>` : ''}<h1>${B.esc(title)}</h1>${extra || ''}</div>`;
@@ -244,6 +255,7 @@
       const calls = phone ? `<section class="pwp-card"><p class="pwp-lbl">Live calls</p><div style="display:grid;gap:.625rem">${callList(app)}</div></section>` : '';
       return { body: head('Dispatch', null, seg) + scroll(`${calls}
         <section class="pwp-card"><p class="pwp-lbl">Units on duty</p>${unitRows(app)}</section>
+        ${feedRows(app)}
         <section class="pwp-card"><p class="pwp-lbl">Latest reports</p>${recent.length ? recent.map(reportRow).join('') : '<div class="pwp-empty">No reports yet</div>'}</section>`, 'dispatch') };
     },
 
@@ -528,7 +540,8 @@
     async attach(app, d) { await shownFirst(app, 'attach', { id: Number(d.id) }, 'enroute'); },
     async detach(app, d) { await shownFirst(app, 'detach', { id: Number(d.id) }, 'available'); },
     async clearCall(app, d) { await ask(app, 'clearCall', { id: Number(d.id) }, () => { if (app.state.pick === Number(d.id)) app.state.pick = null; return load(app); }); },
-    dview(app, d) { app.state.dview = d.v; if (d.v !== 'map') app.state.pick = null; },
+    dview(app, d) { app.state.dview = d.v; if (d.v !== 'map') app.state.pick = null; if (d.v === 'board') load(app); },
+    async watch(app, d) { await ask(app, 'watch', d.k === 'cam' ? { kind: 'cam', id: Number(d.id) } : { kind: 'unit', target: Number(d.id) }); },
     async pickCall(app, d) {
       const s = app.state; const id = Number(d.id);
       const c = (s.calls || []).find((x) => x.id === id);
