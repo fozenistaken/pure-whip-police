@@ -149,6 +149,7 @@ button.pwp-row:active{transform:scale(.985)}
 
   const icon = (d) => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${d}</svg>`;
   const icons = {
+    board: icon('<rect x="3" y="4" width="18" height="15" rx="2"/><path d="M7.5 9.5l4.5 4 4.5-5"/><circle cx="7.5" cy="9.5" r="1.3"/><circle cx="12" cy="13.5" r="1.3"/><circle cx="16.5" cy="8.5" r="1.3"/>'),
     badge: icon('<path d="M12 2.5l7.5 3v5.7c0 4.6-3.2 8.5-7.5 10.3-4.3-1.8-7.5-5.7-7.5-10.3V5.5z"/><path d="M12 8.2l1.3 2.6 2.9.4-2.1 2 .5 2.9-2.6-1.4-2.6 1.4.5-2.9-2.1-2 2.9-.4z"/>'),
     dispatch: icon('<path d="M4 17h16M6 17v-5a6 6 0 0112 0v5M12 3v2M9 20h6"/>'),
     records: icon('<circle cx="12" cy="8" r="3.8"/><path d="M4.5 20.5c1-3.8 4-5.8 7.5-5.8s6.5 2 7.5 5.8"/>'),

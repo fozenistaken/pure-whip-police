@@ -290,6 +290,16 @@ H.prisoners = { perm = 'prison_staff', fn = function()
     return decorate(rows, 'charId', 'name')
 end }
 
+H.boards = { perm = 'records', fn = function() return PWP.Board.list() end }
+H.board = { perm = 'records', fn = function(src, _, a) return PWP.Board.open(num(a.id), src) end }
+H.boardNew = { perm = 'records', fn = function(src, dept, a) return PWP.Board.create(src, dept, a.title) end }
+H.boardAdd = { perm = 'records', fn = function(src, _, a) return PWP.Board.add(src, a) end }
+H.boardMove = { perm = 'records', fn = function(src, _, a) return PWP.Board.move(src, a) end }
+H.boardRemove = { perm = 'records', fn = function(src, _, a) return PWP.Board.remove(src, a) end }
+H.boardLink = { perm = 'records', fn = function(src, _, a) return PWP.Board.link(src, a) end }
+H.boardStatus = { perm = 'records', fn = function(src, _, a) return PWP.Board.setStatus(src, a) end }
+function H.boardLeave(src) PWP.Board.leave(src) return true end
+
 H.release = { perm = 'prison_staff', fn = function(src, _, a)
     local target = sourceOf(num(a.charId))
     if not target then return false, 'They are not online' end

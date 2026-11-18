@@ -44,6 +44,7 @@ server_scripts {
     'server/feeds.lua',
     'server/impound.lua',
     'server/k9.lua',
+    'server/board.lua',
     'server/mdt.lua',
     'server/main.lua',
 }

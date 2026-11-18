@@ -104,12 +104,30 @@
 .mdt-wait{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:.75rem;height:100%;color:var(--mute);font-size:.9375rem;font-weight:600;padding:2rem;text-align:center}
 .mdt-wait svg{width:2.25rem;height:2.25rem;color:var(--faint)}
 .mdt>.pwp-busy{z-index:3}
+.mdt-boardwrap{display:grid;gap:.625rem;min-height:0}
+.mdt-board{position:relative;overflow:auto;height:30rem;border:1px solid var(--line);border-radius:var(--r);background:var(--panel2)}
+.mdt.ph .mdt-board{height:22rem}
+.mdt-board::-webkit-scrollbar{width:.375rem;height:.375rem}.mdt-board::-webkit-scrollbar-track,.mdt-board::-webkit-scrollbar-corner{background:transparent}
+.mdt-board::-webkit-scrollbar-thumb{background:var(--line);border-radius:1rem}.mdt-board::-webkit-scrollbar-button{display:none;width:0;height:0}
+.mdt-canvas{position:relative;width:120rem;height:80rem}
+.mdt-strings{position:absolute;left:0;top:0;width:120rem;height:80rem;pointer-events:none}
+.mdt-strings line{stroke:var(--danger);stroke-width:.12;stroke-linecap:round}
+.mdt-pin{position:absolute;left:0;top:0;width:11rem;min-height:6rem;display:grid;align-content:start;gap:.25rem;padding:.625rem .75rem;border:1px solid var(--line);border-radius:var(--rs);background:var(--panel);color:var(--text);text-align:left;font:inherit;cursor:grab;touch-action:none;user-select:none}
+.mdt-pin.sel{border-color:var(--accent);outline:1px solid var(--accent)}
+.mdt-pin.drag{cursor:grabbing;z-index:2}
+.mdt-pin i{font-style:normal;font-size:.625rem;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--faint)}
+.mdt-pin.k-person i{color:var(--accent)}.mdt-pin.k-vehicle i{color:var(--route)}.mdt-pin.k-evidence i{color:var(--warn)}.mdt-pin.k-report i{color:var(--ok)}
+.mdt-pin b{font-size:.875rem;overflow-wrap:anywhere}
+.mdt-pin span{font-size:.75rem;color:var(--mute);overflow-wrap:anywhere}
+.mdt-boardbar{display:flex;flex-wrap:wrap;gap:.5rem;align-items:center;min-height:2.25rem}
+.mdt-boardbar .s{color:var(--mute);font-size:.8125rem}
 `;
 
   const STATUS = { available: 'Available', busy: 'Busy', enroute: 'En route', onscene: 'On scene' };
   const CAT = { infraction: 'Infraction', misdemeanor: 'Misdemeanor', felony: 'Felony' };
-  const NAV = [['dispatch', 'Dispatch', 'dispatch'], ['records', 'Records', 'records'], ['reports', 'Reports', 'report'], ['wanted', 'Wanted', 'wanted'], ['command', 'Command', 'command']];
+  const NAV = [['dispatch', 'Dispatch', 'dispatch'], ['records', 'Records', 'records'], ['reports', 'Reports', 'report'], ['boards', 'Cases', 'board'], ['wanted', 'Wanted', 'wanted'], ['command', 'Command', 'command']];
   const RTABS = [['overview', 'Overview'], ['history', 'History'], ['vehicles', 'Vehicles'], ['notes', 'Notes'], ['evidence', 'Evidence']];
+  const PINKIND = { person: 'Person', vehicle: 'Vehicle', report: 'Report', evidence: 'Evidence', note: 'Note' };
   const EVKIND = { casing: 'Casing', fragment: 'Round', blood: 'Blood', prints: 'Prints', gun: 'Gun' };
   const SHEET_TITLE = { note: 'Add a note', bolo: 'Look out for', warrant: 'Issue a warrant', plate: 'Look out for a plate', penal: 'Add or change a charge' };
 
@@ -172,7 +190,7 @@
     }
   };
 
-  const shown = (s) => JSON.stringify([s.nav, s.penal && s.penal.length, s.calls, s.units, s.recent, s.reports, s.warrants, s.bolos, s.prisoners, s.feeds, s.err]);
+  const shown = (s) => JSON.stringify([s.nav, s.penal && s.penal.length, s.calls, s.units, s.recent, s.reports, s.warrants, s.bolos, s.prisoners, s.feeds, s.boards, s.board, s.err]);
 
   const load = async (app) => {
     const s = app.state;
@@ -180,6 +198,7 @@
     const jobs = [];
     if (!s.penal) jobs.push(ask(app, 'penal', {}, (r) => { s.penal = r; }, true));
     if (s.nav === 'dispatch') jobs.push(ask(app, 'dashboard', {}, (r) => { s.calls = r.calls; s.units = r.units; s.recent = r.reports; }, true));
+    if (s.nav === 'boards') jobs.push(s.board ? ask(app, 'board', { id: s.board.id }, (r) => { s.board = r; }, true) : ask(app, 'boards', {}, (r) => { s.boards = r; }, true));
     if (s.nav === 'dispatch' && s.dview === 'board' && perms(app).records) jobs.push(ask(app, 'feeds', {}, (r) => { s.feeds = r; }, true));
     else jobs.push(ask(app, 'calls', {}, (r) => { s.calls = r.calls; s.units = r.units; }, true));
     if (s.nav === 'reports' && !s.edit) jobs.push(ask(app, 'reports', { q: '' }, (r) => { s.reports = r; }, true));
@@ -346,6 +365,27 @@
       };
     },
 
+    boards(app) {
+      const s = app.state;
+      if (s.board) return screens.board(app);
+      const list = s.boards || [];
+      const extra = `<button class="pwp-btn sm pwp-press" data-act="openSheet" data-k="case">${B.icons.plus}New</button>`;
+      return { body: head('Investigations', null, extra) + scroll(`<section class="pwp-card">${list.length ? list.map((c) => `<button class="pwp-row" data-act="openBoard" data-id="${c.id}" data-key="b${c.id}"><span class="pwp-code">#${c.id}</span><span class="t">${B.esc(c.title)}<span class="s">${c.items} pinned${c.lead ? ' · ' + B.esc(c.lead) : ''} · ${when(c.updatedAt)}</span></span>${c.status === 'closed' ? '<span class="pwp-flag">Closed</span>' : ''}</button>`).join('') : '<div class="pwp-empty">No investigations yet. Start one and pin people, cars, reports and evidence to it.</div>'}</section>`, 'boards') };
+    },
+
+    board(app) {
+      const s = app.state; const b = s.board;
+      const pos = new Map((b.items || []).map((i) => [i.id, i]));
+      const lines = (b.links || []).map((l) => { const a = pos.get(l.a); const c = pos.get(l.b); return a && c ? `<line data-a="${l.a}" data-b="${l.b}" x1="${a.x + 5.5}" y1="${a.y + 3}" x2="${c.x + 5.5}" y2="${c.y + 3}"/>` : ''; }).join('');
+      const pins = (b.items || []).map((i) => `<button class="mdt-pin k-${i.kind} ${s.pinSel === i.id ? 'sel' : ''}" data-act="pin" data-pin="${i.id}" data-key="p${i.id}" style="transform:translate(${i.x}rem,${i.y}rem)"><i>${PINKIND[i.kind] || i.kind}</i><b>${B.esc(i.label)}</b>${i.sub ? `<span>${B.esc(i.sub)}</span>` : ''}</button>`).join('');
+      const sel = s.pinSel && pos.get(s.pinSel);
+      const bar = s.linking ? `<span class="s">Tap the item to tie to ${B.esc(sel ? sel.label : '')}</span><button class="pwp-btn sm pwp-press" data-act="cancelLink">Cancel</button>`
+        : sel ? `${sel.kind !== 'note' ? '<button class="pwp-btn sm pwp-press" data-act="openPin">Open</button>' : ''}<button class="pwp-btn sm pwp-press" data-act="startLink">Tie to…</button><button class="pwp-btn sm pwp-press" data-act="removePin">Unpin</button>`
+          : '<span class="s">Drag to arrange. Tap an item to open it or tie it to another.</span>';
+      const extra = `<button class="pwp-btn sm pwp-press" data-act="openSheet" data-k="pin">${B.icons.pin}Pin</button><button class="pwp-btn sm pwp-press" data-act="boardStatus">${b.status === 'open' ? 'Close case' : 'Reopen'}</button>`;
+      return { body: head(b.title, 'closeBoard', extra) + `<div class="mdt-boardwrap"><div class="mdt-board" data-scroll="board"><div class="mdt-canvas"><svg class="mdt-strings" viewBox="0 0 120 80" preserveAspectRatio="none">${lines}</svg>${pins}</div></div><div class="mdt-boardbar">${bar}</div></div>` };
+    },
+
     wanted(app) {
       const s = app.state; const pm = perms(app);
       const w = s.warrants || []; const b = s.bolos || [];
@@ -403,6 +443,20 @@
       body = `<input id="f-plate" class="pwp-in mono" data-bind="plate" value="${val(app, 'plate')}" placeholder="Plate">
         <input id="f-reason" class="pwp-in" data-bind="reason" data-enter="boloPlate" value="${val(app, 'reason')}" placeholder="Why officers should stop it">`;
       foot = `<button class="pwp-cta wide pwp-press" data-act="boloPlate">Issue BOLO</button>`;
+    } else if (k === 'pin') {
+      title = 'Pin to ' + s.board.title;
+      const kk = s.f.pinKind || 'person';
+      const res = s.pinRes || [];
+      const hint = { person: 'Name or citizen ID', vehicle: 'Plate', report: 'Report title', evidence: 'Serial or a DNA or print code' }[kk];
+      body = `<div class="pwp-seg" data-glide="pinkind" style="justify-self:start">${Object.entries(PINKIND).map(([v, l]) => `<button class="${kk === v ? 'on' : ''}" data-act="pinKind" data-v="${v}">${l}</button>`).join('')}</div>
+        ${kk === 'note' ? `<input id="f-pinNote" class="pwp-in" data-bind="pinNote" data-enter="pinNote" value="${val(app, 'pinNote')}" placeholder="What to remember, e.g. red van seen twice">`
+          : `<label class="pwp-search">${B.icons.search}<input id="f-pinQ" data-bind="pinQ" data-enter="pinSearch" value="${val(app, 'pinQ')}" placeholder="${hint}" autocomplete="off"></label>
+        <div class="mdt-pick">${res.map((r, i) => `<div class="pwp-row"><span class="t">${B.esc(r.label)}<span class="s">${B.esc(r.sub || '')}</span></span><button class="pwp-btn sm pwp-press" data-act="pinAdd" data-i="${i}">Pin</button></div>`).join('') || (s.searched ? '<div class="pwp-empty">Nothing matches</div>' : '')}</div>`}`;
+      foot = kk === 'note' ? '<button class="pwp-cta wide pwp-press" data-act="pinNote">Pin the note</button>' : '';
+    } else if (k === 'case') {
+      title = 'New investigation';
+      body = `<input id="f-caseTitle" class="pwp-in" data-bind="caseTitle" data-enter="newCase" value="${val(app, 'caseTitle')}" placeholder="Name it, e.g. Strawberry 24/7 robberies">`;
+      foot = '<button class="pwp-cta wide pwp-press" data-act="newCase">Open the investigation</button>';
     } else if (k === 'penal') {
       title = SHEET_TITLE.penal;
       body = `<div class="pwp-two"><input id="f-pCode" class="pwp-in mono" data-bind="pCode" value="${val(app, 'pCode')}" placeholder="Code, e.g. P110"><input id="f-pTitle" class="pwp-in" data-bind="pTitle" value="${val(app, 'pTitle')}" placeholder="Charge"></div>
@@ -525,6 +579,16 @@
     if (action !== 'status') await load(app);
   };
 
+  const reloadBoard = (app) => ask(app, 'board', { id: app.state.board.id }, (r) => { app.state.board = r; }, true);
+  const tie = async (app, a, b) => {
+    const s = app.state;
+    const l = s.board.links.find((x) => (x.a === a && x.b === b) || (x.a === b && x.b === a));
+    if (l) s.board.links = s.board.links.filter((x) => x !== l); else s.board.links.push({ id: 0, a, b });
+    s.pinSel = b;
+    draw(app);
+    await ask(app, 'boardLink', { a, b }, null, true);
+  };
+
   const reloadPerson = (app, id) => ask(app, 'person', { charId: id }, (r) => { app.state.person = r; });
 
   const actions = {
@@ -633,6 +697,61 @@
     async boloPlate(app) {
       await ask(app, 'addBolo', { plate: app.state.f.plate || '', reason: app.state.f.reason || '' }, () => { app.state.sheet = null; app.toast('Lookout issued'); });
     },
+    async openBoard(app, d) { const s = app.state; s.pinSel = null; s.linking = false; await ask(app, 'board', { id: Number(d.id) }, (r) => { s.board = r; }); },
+    async closeBoard(app) { const s = app.state; s.board = null; s.pinSel = null; s.linking = false; ask(app, 'boardLeave', {}, null, true); await load(app); },
+    async newCase(app) { const s = app.state; await ask(app, 'boardNew', { title: s.f.caseTitle || '' }, async (r) => { s.f.caseTitle = ''; s.sheet = null; await actions.openBoard(app, { id: r.id }); }); },
+    pinKind(app, d) { const s = app.state; s.f.pinKind = d.v; s.pinRes = []; s.searched = false; },
+    async pinSearch(app) {
+      const s = app.state; const q = String(s.f.pinQ || '').trim(); const kk = s.f.pinKind || 'person';
+      if (!q) return;
+      if (kk === 'person') await ask(app, 'people', { q }, (r) => { s.pinRes = (r || []).map((p) => ({ ref: p.charId, label: p.firstName + ' ' + p.lastName, sub: 'ID ' + p.charId + ' · born ' + day(p.dateOfBirth) })); });
+      else if (kk === 'vehicle') await ask(app, 'vehicles', { q }, (r) => { s.pinRes = (r || []).map((v) => ({ ref: v.plate, label: v.plate, sub: v.model + (v.owner ? ' · ' + v.owner : '') })); });
+      else if (kk === 'report') await ask(app, 'reports', { q }, (r) => { s.pinRes = (r || []).map((x) => ({ ref: x.id, label: x.title, sub: 'Report #' + x.id })); });
+      else await ask(app, 'evidence', { q }, (r) => {
+        const rows = (r && r.rows) || [];
+        s.pinRes = rows.map((e) => ({ ref: e.code || e.serial, label: (EVKIND[e.kind] || e.kind) + ' ' + (e.code || e.serial || ''), sub: [e.gunName, e.ownerName].filter(Boolean).join(' · ') }));
+        if (r && r.owner) s.pinRes.unshift({ ref: q, label: q.toUpperCase(), sub: 'Belongs to ' + (r.ownerName || 'a person on file') });
+      });
+      s.searched = true;
+    },
+    async pinAdd(app, d) {
+      const s = app.state; const r = (s.pinRes || [])[Number(d.i)];
+      if (!r) return;
+      await ask(app, 'boardAdd', { id: s.board.id, kind: s.f.pinKind || 'person', ref: r.ref, label: r.label, sub: r.sub }, async () => { s.sheet = null; s.pinRes = []; s.f.pinQ = ''; s.searched = false; await reloadBoard(app); });
+    },
+    async pinNote(app) { const s = app.state; await ask(app, 'boardAdd', { id: s.board.id, kind: 'note', label: s.f.pinNote || '' }, async () => { s.sheet = null; s.f.pinNote = ''; await reloadBoard(app); }); },
+    pin(app, d) {
+      const s = app.state; const id = Number(d.pin);
+      const ctx = live.get(app);
+      const n = ctx && ctx.el.querySelector(`[data-pin="${id}"]`);
+      if (n && n.dataset.moved) { delete n.dataset.moved; return 'skip'; }
+      if (s.linking && s.pinSel && s.pinSel !== id) { const a = s.pinSel; s.linking = false; tie(app, a, id); return 'skip'; }
+      s.pinSel = s.pinSel === id ? null : id;
+    },
+    pinMoved(app, d) {
+      const s = app.state; const it = (s.board.items || []).find((i) => i.id === Number(d.id));
+      if (it) ask(app, 'boardMove', { itemId: it.id, x: Math.round(it.x * 100) / 100, y: Math.round(it.y * 100) / 100 }, null, true);
+      return 'skip';
+    },
+    startLink(app) { app.state.linking = true; },
+    cancelLink(app) { app.state.linking = false; },
+    async removePin(app) {
+      const s = app.state; const id = s.pinSel;
+      s.board.items = s.board.items.filter((i) => i.id !== id);
+      s.board.links = s.board.links.filter((l) => l.a !== id && l.b !== id);
+      s.pinSel = null;
+      draw(app);
+      await ask(app, 'boardRemove', { itemId: id }, null, true);
+    },
+    async openPin(app) {
+      const s = app.state; const it = (s.board.items || []).find((i) => i.id === s.pinSel);
+      if (!it) return;
+      if (it.kind === 'person') return actions.openPerson(app, { id: it.ref });
+      if (it.kind === 'report') return actions.openReport(app, { id: it.ref });
+      s.f.q = String(it.ref);
+      return actions.search(app);
+    },
+    async boardStatus(app) { const s = app.state; const st = s.board.status === 'open' ? 'closed' : 'open'; s.board.status = st; draw(app); await ask(app, 'boardStatus', { id: s.board.id, status: st }, null, true); },
     async closeWarrant(app, d) {
       await ask(app, 'closeWarrant', { id: Number(d.id), status: d.s }, async () => { if (app.state.person) await reloadPerson(app, app.state.person.charId); else await load(app); });
     },
@@ -692,7 +811,41 @@
     if (r && typeof r.then === 'function') r.then(() => draw(app));
   };
 
+  const dragPins = (app, el) => {
+    el.addEventListener('pointerdown', (e) => {
+      const p = e.target.closest('.mdt-pin');
+      if (!p || e.button !== 0 || !app.state.board) return;
+      const canvas = p.parentElement;
+      const it = (app.state.board.items || []).find((i) => i.id === Number(p.dataset.pin));
+      if (!it) return;
+      const unit = canvas.getBoundingClientRect().width / 120;
+      const sx = e.clientX; const sy = e.clientY; const ox = it.x; const oy = it.y;
+      let moved = false;
+      const move = (ev) => {
+        if (!moved && Math.hypot(ev.clientX - sx, ev.clientY - sy) < 4) return;
+        moved = true;
+        p.classList.add('drag');
+        it.x = Math.max(0, Math.min(109, ox + (ev.clientX - sx) / unit));
+        it.y = Math.max(0, Math.min(74, oy + (ev.clientY - sy) / unit));
+        p.style.transform = `translate(${it.x}rem,${it.y}rem)`;
+        canvas.querySelectorAll(`line[data-a="${it.id}"],line[data-b="${it.id}"]`).forEach((ln) => {
+          const end = Number(ln.dataset.a) === it.id ? '1' : '2';
+          ln.setAttribute('x' + end, it.x + 5.5);
+          ln.setAttribute('y' + end, it.y + 3);
+        });
+      };
+      const up = () => {
+        p.removeEventListener('pointermove', move); p.removeEventListener('pointerup', up); p.removeEventListener('pointercancel', up);
+        p.classList.remove('drag');
+        if (moved) { p.dataset.moved = '1'; run(app, 'pinMoved', { id: String(it.id) }); }
+      };
+      try { p.setPointerCapture(e.pointerId); } catch { }
+      p.addEventListener('pointermove', move); p.addEventListener('pointerup', up); p.addEventListener('pointercancel', up);
+    });
+  };
+
   const wire = (app, el) => {
+    dragPins(app, el);
     el.addEventListener('click', (e) => {
       const t = e.target.closest('[data-act]');
       if (!t || !el.contains(t) || t.disabled) return;
@@ -761,6 +914,7 @@
     },
     on: {
       alert(app, a) { const s = app.state; s.calls = [a].concat((s.calls || []).filter((c) => c.id !== a.id)); draw(app); },
+      board(app, d) { const s = app.state; if (s.board && s.board.id === d.id) reloadBoard(app).then(() => draw(app)); },
       alertCleared(app, d) { const s = app.state; s.calls = (s.calls || []).filter((c) => c.id !== d.id); if (s.pick === d.id) s.pick = null; draw(app); },
     },
     badge(app) { return (app.state.calls || []).length || 0; },
