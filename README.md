@@ -107,3 +107,9 @@ CCTV and body cams. Run it from the folder holding both resources:
     lua pure-whip-police/tests/harness/run.lua <path to pure-whip-police> <path to pure-whip-courts>
 
 Any WHIP call the simulation does not know is reported as missing, so a misspelt export fails the run.
+
+`tests/harness/client.lua` runs the client code the same way, with the natives and the WHIP client exports simulated:
+the radar and plate reads, K9 commands, clamps on cars, the camera viewer and body cams, impact and injury reports.
+`Wait(0)` is one 16 ms frame, as in game, so per-frame loops advance the clock.
+
+    lua pure-whip-police/tests/harness/client.lua <path to pure-whip-police>
