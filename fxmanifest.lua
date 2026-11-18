@@ -43,6 +43,7 @@ server_scripts {
     'server/traffic.lua',
     'server/feeds.lua',
     'server/impound.lua',
+    'server/k9.lua',
     'server/mdt.lua',
     'server/main.lua',
 }
@@ -62,6 +63,7 @@ client_scripts {
     'client/traffic.lua',
     'client/feeds.lua',
     'client/impound.lua',
+    'client/k9.lua',
 }
 
 files {

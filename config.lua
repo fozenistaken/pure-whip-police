@@ -222,6 +222,13 @@ Config.Clamp = { fine = 250, cutSeconds = 25 }
 -- 0-100000. Example: Config.Impound = { coords = vector3(409.3, -1623.1, 29.3), heading = 230.0, spawn = nil, fee = 750 }
 Config.Impound = { coords = vector3(409.3, -1623.1, 29.3), heading = 230.0, spawn = nil, fee = 500 }
 
+-- K9 unit, for officers with the k9 licence on duty (F1 wheel -> K9). model: the dog's ped model (a_c_shepherd,
+-- a_c_rottweiler, a_c_husky). smells: Lua patterns of item keys the dog alerts on (it sits by them, as a real
+-- detection dog does); add your server's drug items, e.g. '^weed', '^coke'. sniffSeconds: the search, 2-15.
+-- protected: true makes the dog unhurtable; false lets it be hurt (then it goes home for cooldownMinutes, 1-60).
+-- Example: Config.K9 = { model = 'a_c_rottweiler', smells = { '^gunny_', '^ammo_', '^weed' }, sniffSeconds = 5, protected = false, cooldownMinutes = 10 }
+Config.K9 = { model = 'a_c_shepherd', smells = { '^gunny_', '^ammo_' }, sniffSeconds = 4, protected = true, cooldownMinutes = 10 }
+
 -- Fines. account: the bank account number fines are paid into (e.g. 'WB-123456', a business account an admin made
 -- for the city); nil sends the money nowhere. Kiosks are points of kind 'kiosk', open to everyone.
 Config.Fines = { account = nil }
