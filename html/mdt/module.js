@@ -104,6 +104,10 @@
 .mdt-wait{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:.75rem;height:100%;color:var(--mute);font-size:.9375rem;font-weight:600;padding:2rem;text-align:center}
 .mdt-wait svg{width:2.25rem;height:2.25rem;color:var(--faint)}
 .mdt>.pwp-busy{z-index:3}
+.mdt-chips{display:flex;flex-wrap:wrap;gap:.375rem}
+.mdt-chip{border:1px solid var(--line);background:var(--fill);color:var(--text);font:inherit;font-size:.8125rem;font-weight:600;padding:.4375rem .75rem;border-radius:var(--rs);cursor:pointer;text-align:left}
+.mdt-chip.on{background:var(--sel);border-color:var(--sel);color:var(--on-sel)}
+.mdt-note{color:var(--mute);font-size:.8125rem}
 .mdt-boardwrap{display:grid;gap:.625rem;min-height:0}
 .mdt-board{position:relative;overflow:auto;height:30rem;border:1px solid var(--line);border-radius:var(--r);background:var(--panel2)}
 .mdt.ph .mdt-board{height:22rem}
@@ -125,7 +129,7 @@
 
   const STATUS = { available: 'Available', busy: 'Busy', enroute: 'En route', onscene: 'On scene' };
   const CAT = { infraction: 'Infraction', misdemeanor: 'Misdemeanor', felony: 'Felony' };
-  const NAV = [['dispatch', 'Dispatch', 'dispatch'], ['records', 'Records', 'records'], ['reports', 'Reports', 'report'], ['boards', 'Cases', 'board'], ['wanted', 'Wanted', 'wanted'], ['command', 'Command', 'command']];
+  const NAV = [['dispatch', 'Dispatch', 'dispatch'], ['records', 'Records', 'records'], ['reports', 'Reports', 'report'], ['boards', 'Cases', 'board'], ['wanted', 'Wanted', 'wanted'], ['academy', 'Academy', 'badge'], ['command', 'Command', 'command']];
   const RTABS = [['overview', 'Overview'], ['history', 'History'], ['vehicles', 'Vehicles'], ['notes', 'Notes'], ['evidence', 'Evidence']];
   const PINKIND = { person: 'Person', vehicle: 'Vehicle', report: 'Report', evidence: 'Evidence', note: 'Note' };
   const EVKIND = { casing: 'Casing', fragment: 'Round', blood: 'Blood', prints: 'Prints', gun: 'Gun' };
@@ -156,7 +160,8 @@
     return { fine, months };
   };
   const chargeList = (app) => Object.entries(app.state.charges).filter(([, n]) => n > 0).map(([code, count]) => ({ code, count }));
-  const navFor = (app) => NAV.filter(([id]) => id !== 'command' || perms(app).command || perms(app).prison_staff);
+  const navFor = (app) => NAV.filter(([id]) => (id !== 'command' || perms(app).command || perms(app).prison_staff)
+    && (id !== 'academy' || (app.state.me && app.state.me.academy) || perms(app).command));
 
   const showBusy = (app) => {
     const ctx = live.get(app);
@@ -190,7 +195,7 @@
     }
   };
 
-  const shown = (s) => JSON.stringify([s.nav, s.penal && s.penal.length, s.calls, s.units, s.recent, s.reports, s.warrants, s.bolos, s.prisoners, s.feeds, s.boards, s.board, s.err]);
+  const shown = (s) => JSON.stringify([s.nav, s.penal && s.penal.length, s.calls, s.units, s.recent, s.reports, s.warrants, s.bolos, s.prisoners, s.feeds, s.boards, s.board, s.academy, s.exam, s.examResult, s.err]);
 
   const load = async (app) => {
     const s = app.state;
@@ -198,6 +203,7 @@
     const jobs = [];
     if (!s.penal) jobs.push(ask(app, 'penal', {}, (r) => { s.penal = r; }, true));
     if (s.nav === 'dispatch') jobs.push(ask(app, 'dashboard', {}, (r) => { s.calls = r.calls; s.units = r.units; s.recent = r.reports; }, true));
+    if (s.nav === 'academy' && !s.exam) jobs.push(ask(app, 'academy', {}, (r) => { s.academy = r; }, true));
     if (s.nav === 'boards') jobs.push(s.board ? ask(app, 'board', { id: s.board.id }, (r) => { s.board = r; }, true) : ask(app, 'boards', {}, (r) => { s.boards = r; }, true));
     if (s.nav === 'dispatch' && s.dview === 'board' && perms(app).records) jobs.push(ask(app, 'feeds', {}, (r) => { s.feeds = r; }, true));
     else jobs.push(ask(app, 'calls', {}, (r) => { s.calls = r.calls; s.units = r.units; }, true));
@@ -384,6 +390,20 @@
           : '<span class="s">Drag to arrange. Tap an item to open it or tie it to another.</span>';
       const extra = `<button class="pwp-btn sm pwp-press" data-act="openSheet" data-k="pin">${B.icons.pin}Pin</button><button class="pwp-btn sm pwp-press" data-act="boardStatus">${b.status === 'open' ? 'Close case' : 'Reopen'}</button>`;
       return { body: head(b.title, 'closeBoard', extra) + `<div class="mdt-boardwrap"><div class="mdt-board" data-scroll="board"><div class="mdt-canvas"><svg class="mdt-strings" viewBox="0 0 120 80" preserveAspectRatio="none">${lines}</svg>${pins}</div></div><div class="mdt-boardbar">${bar}</div></div>` };
+    },
+
+    academy(app) {
+      const s = app.state; const a = s.academy || {};
+      if (s.exam) {
+        const done = s.exam.questions.every((q) => s.examAnswers[q.id]);
+        const qs = s.exam.questions.map((q, n) => `<section class="pwp-card" data-key="q${q.id}"><p class="pwp-lbl">Question ${n + 1} of ${s.exam.questions.length}</p><p style="margin:0 0 .625rem;font-weight:600">${B.esc(q.text)}</p><div class="mdt-chips">${q.options.map((o, i) => `<button class="mdt-chip ${s.examAnswers[q.id] === i + 1 ? 'on' : ''}" data-act="examPick" data-q="${q.id}" data-i="${i + 1}">${B.esc(o)}</button>`).join('')}</div></section>`).join('');
+        return { body: head('Academy exam') + scroll(qs + `<button class="pwp-cta wide pwp-press" data-act="examSubmit" ${done ? '' : 'disabled'}>Hand in the exam</button>`, 'exam') };
+      }
+      const r = s.examResult || (a.last && { right: a.last.right, total: a.last.total, passed: a.last.passed === 1 || a.last.passed === true });
+      const result = r ? `<div class="pwp-row"><span class="t">${r.passed ? 'Passed' : 'Not passed yet'}<span class="s">${r.right} of ${r.total} right</span></span><span class="pwp-flag ${r.passed ? 'ok' : 'warn'}">${Math.round((r.right / r.total) * 100)}%</span></div>` : '<div class="pwp-empty">No exam taken yet</div>';
+      const results = a.results ? `<section class="pwp-card"><p class="pwp-lbl">Department results</p>${a.results.length ? a.results.map((x) => `<div class="pwp-row"><span class="t">${B.esc(x.name || ('#' + x.charId))}<span class="s">${when(x.at)}</span></span><span class="num">${x.right}/${x.total}</span><span class="pwp-flag ${x.passed ? 'ok' : 'warn'}">${x.passed ? 'Passed' : 'Failed'}</span></div>`).join('') : '<div class="pwp-empty">Nobody has taken it yet</div>'}</section>` : '';
+      const mine = s.me && s.me.academy ? `<section class="pwp-card"><p class="pwp-lbl">Your exam</p>${result}<p class="mdt-note" style="margin:.625rem 0">${a.questions || 10} questions on the penal code and how this department works. ${Math.round((a.pass || 0.8) * 100)}% to pass.</p>${r && r.passed ? '' : '<button class="pwp-cta wide pwp-press" data-act="examStart">Start the exam</button>'}</section>` : '';
+      return { body: head('Academy') + scroll(mine + results, 'academy') };
     },
 
     wanted(app) {
@@ -752,6 +772,13 @@
       return actions.search(app);
     },
     async boardStatus(app) { const s = app.state; const st = s.board.status === 'open' ? 'closed' : 'open'; s.board.status = st; draw(app); await ask(app, 'boardStatus', { id: s.board.id, status: st }, null, true); },
+    async examStart(app) { const s = app.state; s.examResult = null; await ask(app, 'examStart', {}, (r) => { s.exam = r; s.examAnswers = {}; }); },
+    examPick(app, d) { app.state.examAnswers[Number(d.q)] = Number(d.i); },
+    async examSubmit(app) {
+      const s = app.state;
+      await ask(app, 'examSubmit', { answers: s.examAnswers }, (r) => { s.exam = null; s.examResult = r; app.toast(r.passed ? 'Passed the academy' : 'Not passed: study the penal code and try again'); });
+      await load(app);
+    },
     async closeWarrant(app, d) {
       await ask(app, 'closeWarrant', { id: Number(d.id), status: d.s }, async () => { if (app.state.person) await reloadPerson(app, app.state.person.charId); else await load(app); });
     },

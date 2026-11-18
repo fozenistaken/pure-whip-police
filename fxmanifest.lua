@@ -20,6 +20,7 @@ shared_scripts {
     'shared/sentence.lua',
     'shared/evidence_logic.lua',
     'shared/traffic_logic.lua',
+    'shared/academy.lua',
 }
 
 server_scripts {
@@ -45,6 +46,7 @@ server_scripts {
     'server/impound.lua',
     'server/k9.lua',
     'server/board.lua',
+    'server/academy.lua',
     'server/mdt.lua',
     'server/main.lua',
 }

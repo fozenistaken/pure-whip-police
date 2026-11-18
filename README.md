@@ -32,6 +32,7 @@ The default points sit in GTA's own interiors. Mission Row uses GTA's `v_policeh
 | K9 | Officers with the `k9` licence (`/pdlicence <id> k9`), on duty: F1 wheel → K9 → Call the dog (a shepherd that follows you, into cars too), Heel, Sit and stay, Search (face a person or a car: the dog sniffs, and sits by the find when it smells guns, ammo or the items in `Config.K9.smells`), Take them down, Send home. A hurt dog rests for `Config.K9.cooldownMinutes` |
 | Investigations | MDT → Cases → New: a board you share with other officers. Pin people, vehicles, reports, evidence (serials, DNA and print codes) and notes, drag them around, tie them together with red string, open any pin, close the case when it's solved. Everyone looking at the same board sees changes live |
 | Prison escapes | Inmates sometimes find wire cutters at work spots. Used near the outer fence, they cut it open (`Config.Escape`): for a few minutes the guard stops pulling them back, police get a high-priority "Prison break" call and see the inmate on the map. Leaving the prison ends the sentence and puts out a warrant |
+| Academy | Ranks below `Config.Academy.untilLevel` see MDT → Academy: an exam built from your own penal code (fines, prison time, kinds of charge) plus the questions in `Config.Academy.extra`. Answers stay on the server. Command sees every result for promotions |
 | Cleaning up | A cleaning cloth wipes the gun in your hand (use it), a car's driver door, and blood |
 
 ## Swapping parts
@@ -71,6 +72,7 @@ Every export returns a result, or `false, why`.
 | `GetEvidenceNear(coords, radius?)` | `{ kind, coords, at }[]` |
 | `CheckPlate(plate)` / `GetLastSeen(plate)` | `{ plate, bolo, owner, wanted }` / `{ x, y, z, at, by }` |
 | `Impound(vehicleId, { by?, dept?, reason? })` / `ReleaseImpound(vehicleId)` / `IsClamped(vehicleId)` | `true, 'impounded'│'towed'` / `true` / boolean |
+| `GetAcademyResult(charId, dept)` | `{ right, total, passed, at }` |
 | `GetForensicCodes(charId)` / `FindCodeOwner(code)` | `{ dna, print }` / charId (only after their samples were taken) |
 
 ## Events (server)
@@ -85,7 +87,7 @@ Every export returns a result, or `false, why`.
 - `licenceChanged`
 - `evidenceCreated`, `evidenceCollected`, `evidenceAnalysed`
 - `plateSeen`, `plateHit`, `speedTicket`
-- `finesPaid`, `impounded`, `unclamped`, `escaped`
+- `finesPaid`, `impounded`, `unclamped`, `escaped`, `academy`
 
 ## Assets
 

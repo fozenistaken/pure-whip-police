@@ -235,6 +235,25 @@ Config.K9 = { model = 'a_c_shepherd', smells = { '^gunny_', '^ammo_' }, sniffSec
 -- escape (sentence ends, a warrant goes out, police see the escapee on the map). Example: Config.Escape = { findChance = 0.05, edgeMetres = 8.0, cutSeconds = 90, runMinutes = 3 }
 Config.Escape = { findChance = 0.12, edgeMetres = 10.0, cutSeconds = 45, runMinutes = 4 }
 
+-- Academy exam in the MDT (Academy section), built from your penal code plus the questions below. questions: how
+-- many per exam, 5-30. pass: share right to pass, 0.5-1. retryMinutes: wait after failing, 0-1440. untilLevel: ranks
+-- below this level see the Academy section (command always sees the results), 1-100. extra: your own questions,
+-- each { q = 'question', a = 'right answer', wrong = { 'wrong', 'wrong', 'wrong' } }.
+-- Example extra: { q = 'What does 10-99 mean?', a = 'Officer needs help', wrong = { 'Shots fired', 'Lunch break', 'Traffic stop' } }
+Config.Academy = {
+    questions = 10, pass = 0.8, retryMinutes = 30, untilLevel = 20,
+    extra = {
+        { q = 'What does 10-71 mean?', a = 'Shots fired', wrong = { 'Officer needs help', 'Traffic stop', 'Prison break' } },
+        { q = 'What does 10-99 mean?', a = 'Officer needs help', wrong = { 'Shots fired', 'Camera offline', 'Lunch break' } },
+        { q = 'A suspect pleads not guilty at booking. What happens?', a = 'A court case opens, with bail or remand',
+          wrong = { 'They are sentenced anyway', 'They go free with no record', 'The officer picks the sentence' } },
+        { q = 'What makes evidence count in the lab?', a = 'It was bagged in an evidence bag',
+          wrong = { 'It was picked up with bare hands', 'It was photographed', 'A judge signed it' } },
+        { q = 'What frees a clamped car?', a = 'The owner paying their fines',
+          wrong = { 'Driving off hard', 'Waiting an hour', 'Calling a tow truck' } },
+    },
+}
+
 -- Fines. account: the bank account number fines are paid into (e.g. 'WB-123456', a business account an admin made
 -- for the city); nil sends the money nowhere. Kiosks are points of kind 'kiosk', open to everyone.
 Config.Fines = { account = nil }

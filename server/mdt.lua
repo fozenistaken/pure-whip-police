@@ -34,7 +34,7 @@ function H.me(src, dept)
     local p = Whip.core:GetPlayers({ light = true })[src] or {}
     return { dept = dept, deptLabel = PWP.dept(dept).label, short = PWP.dept(dept).short, rank = role.name,
         level = role.level, name = p.fullName, callsign = D.callsign(src), status = u.status, perms = perms,
-        courts = PWP.courts() ~= nil }
+        courts = PWP.courts() ~= nil, academy = (role.level or 0) < Config.Academy.untilLevel }
 end
 
 function H.dashboard(src, dept)
@@ -299,6 +299,14 @@ H.boardRemove = { perm = 'records', fn = function(src, _, a) return PWP.Board.re
 H.boardLink = { perm = 'records', fn = function(src, _, a) return PWP.Board.link(src, a) end }
 H.boardStatus = { perm = 'records', fn = function(src, _, a) return PWP.Board.setStatus(src, a) end }
 function H.boardLeave(src) PWP.Board.leave(src) return true end
+
+function H.academy(src, dept)
+    local out = { last = PWP.Exams.last(Whip.core:GetCharId(src), dept), questions = Config.Academy.questions, pass = Config.Academy.pass }
+    if Whip.core:HasJobPermission(src, dept, 'command') then out.results = PWP.Exams.results(dept) end
+    return out
+end
+function H.examStart(src, dept) return PWP.Exams.start(src, dept) end
+function H.examSubmit(src, _, a) return PWP.Exams.submit(src, a.answers) end
 
 H.release = { perm = 'prison_staff', fn = function(src, _, a)
     local target = sourceOf(num(a.charId))
