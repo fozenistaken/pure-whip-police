@@ -229,6 +229,12 @@ Config.Impound = { coords = vector3(409.3, -1623.1, 29.3), heading = 230.0, spaw
 -- Example: Config.K9 = { model = 'a_c_rottweiler', smells = { '^gunny_', '^ammo_', '^weed' }, sniffSeconds = 5, protected = false, cooldownMinutes = 10 }
 Config.K9 = { model = 'a_c_shepherd', smells = { '^gunny_', '^ammo_' }, sniffSeconds = 4, protected = true, cooldownMinutes = 10 }
 
+-- Prison escapes. findChance: chance an inmate finds wire cutters at a work spot, 0-1 (0 turns escapes off).
+-- edgeMetres: how close to the prison zone's edge the fence can be cut, 2-30. cutSeconds: the cut, 10-300.
+-- runMinutes: how long the guard stops pulling them back after the cut, 1-15; leaving the zone in that time is an
+-- escape (sentence ends, a warrant goes out, police see the escapee on the map). Example: Config.Escape = { findChance = 0.05, edgeMetres = 8.0, cutSeconds = 90, runMinutes = 3 }
+Config.Escape = { findChance = 0.12, edgeMetres = 10.0, cutSeconds = 45, runMinutes = 4 }
+
 -- Fines. account: the bank account number fines are paid into (e.g. 'WB-123456', a business account an admin made
 -- for the city); nil sends the money nowhere. Kiosks are points of kind 'kiosk', open to everyone.
 Config.Fines = { account = nil }

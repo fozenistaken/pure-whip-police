@@ -4,6 +4,7 @@ local BLOCK = PWP.name('jail')
 local HIDDEN = vector3(-2.0, -2.0, -60.0)
 local S = PWP.Sentence
 
+local CUTTERS = PWP.name('cutters')
 local Prison = { jailed = {}, belongings = {}, cooldown = {} }
 PWP.Prison = Prison
 
@@ -155,15 +156,74 @@ local function tick()
     end
 end
 
+local function track(src, untilAt)
+    CreateThread(function()
+        local key = 'escapee_' .. src
+        while os.time() < untilAt and GetPlayerPed(src) ~= 0 do
+            local people = {}
+            for _, o in ipairs(PWP.onDutyOfficers() or {}) do people[#people + 1] = o.source end
+            if #people > 0 then
+                Whip.core:ShowBlip({ people = people }, key, { coords = GetEntityCoords(GetPlayerPed(src)), label = 'Escaped inmate',
+                    sprite = 188, color = 1, flash = true, scale = 1.1 })
+            end
+            Wait(10000)
+        end
+        Whip.core:HideBlip(key)
+    end)
+end
+
+function Prison.escaped(src)
+    local j = Prison.jailed[src]
+    if not j then return end
+    Prison.jailed[src] = nil
+    MySQL.update.await(q("UPDATE {t} SET `status` = 'released', `releasedAt` = NOW() WHERE `charId` = ? AND `status` = 'active'"), { j.charId })
+    Whip.core:SetPlayerFlag(src, FLAG, nil)
+    Whip.core:UnblockHands(src, BLOCK)
+    PWP.Records.issueWarrant(j.charId, { reason = ('Escaped from Bolingbroke with %d minutes left'):format(j.left), days = 14 })
+    Whip.core:NotifyPlayer(src, 'You are out. Every officer in the county is looking for you.', 'warning', 10000)
+    Whip.core:LogActivity(src, 'prison_escape', { detail = ('%d minutes left'):format(j.left) })
+    track(src, os.time() + Config.Escape.runMinutes * 60)
+    TriggerEvent(PWP.event('escaped'), { source = src, charId = j.charId, minutesLeft = j.left })
+end
+
 local function guard()
     local zone = Config.Prison.zone
-    for src in pairs(Prison.jailed) do
+    local now = os.time()
+    for src, j in pairs(Prison.jailed) do
         local ped = GetPlayerPed(src)
         if ped and ped ~= 0 and not S.inBox(GetEntityCoords(ped), zone) then
-            teleport(src, cellSpot())
-            Whip.core:NotifyPlayer(src, 'You cannot leave the prison', 'error')
+            if j.escaping and now < j.escaping then
+                Prison.escaped(src)
+            else
+                j.escaping = nil
+                teleport(src, cellSpot())
+                Whip.core:NotifyPlayer(src, 'You cannot leave the prison', 'error')
+            end
+        elseif j.escaping and now >= j.escaping then
+            j.escaping = nil
         end
     end
+end
+
+local function cutFence(src)
+    local j = Prison.jailed[src]
+    if not j then return false, 'Nothing to cut out here' end
+    if j.escaping then return false, 'The fence is already open' end
+    local here = GetEntityCoords(GetPlayerPed(src))
+    if S.edge(here, Config.Prison.zone) > Config.Escape.edgeMetres then return false, 'Get to the outer fence first' end
+    local player = Whip.core:GetPlayer(src)
+    CreateThread(function()
+        local done = Whip.core:Progress(src, { label = 'Cutting the fence...', duration = Config.Escape.cutSeconds * 1000,
+            near = { coords = here, range = 2.5 } })
+        if done ~= true or not Prison.jailed[src] or not Whip.core:IsSessionCurrent(src, player.session) then return end
+        if not Whip.core:RemoveItem(src, CUTTERS, 1) then return end
+        j.escaping = os.time() + Config.Escape.runMinutes * 60
+        Whip.core:NotifyPlayer(src, ('The fence is open: run. You have %d minutes before they lock it down.'):format(Config.Escape.runMinutes), 'warning', 10000)
+        PWP.Dispatch.send({ code = '10-98', title = 'Prison break', coords = Config.Prison.booking, priority = 'high',
+            maxResponders = 20, info = { 'Inmate cut through the Bolingbroke fence' } })
+        track(src, j.escaping)
+    end)
+    return false
 end
 
 CreateThread(function()
@@ -204,6 +264,9 @@ local function addPrisonPoints()
                     if done ~= true or not Prison.jailed[source] then return end
                     j.left = S.cut(j.left, Config.Prison.cutPerJob)
                     Whip.core:NotifyPlayer(source, ('Good work: %d minutes left'):format(j.left), 'success')
+                    if math.random() < Config.Escape.findChance and Whip.core:AddItem(source, CUTTERS, 1, nil, { reason = 'found at a prison job' }) then
+                        Whip.core:NotifyPlayer(source, 'Behind the panel: a pair of wire cutters. Nobody saw.', 'info', 8000)
+                    end
                 end)
                 return true
             end,
@@ -239,6 +302,13 @@ Whip.register(function()
     Whip.core:ShowBlip('everyone', 'prison', { coords = Config.Prison.booking, label = 'Bolingbroke Penitentiary',
         sprite = 188, color = 0, shortRange = true })
     addPrisonPoints()
+    Whip.core:RegisterItem(CUTTERS, { name = 'Wire Cutters', desc = 'Contraband. Cuts through a fence.', weight = 0.6,
+        type = 'tool', stack = false, usable = true })
+    Whip.core:RegisterUseHandler(CUTTERS, function(source)
+        local ok, why = cutFence(source)
+        if not ok and why then Whip.core:NotifyPlayer(source, why, 'error') end
+        return false
+    end)
 end)
 
 Whip.command('jail', {}, function(source, args)

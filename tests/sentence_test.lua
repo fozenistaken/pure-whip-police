@@ -20,3 +20,13 @@ Test('a rotated box turns with its heading', function()
     local r = { pos = v(0, 0, 0), size = v(10, 2, 10), heading = 90.0 }
     Eq(S.inBox(v(0, 4, 0), r), true, 'along y'); Eq(S.inBox(v(4, 0, 0), r), false, 'across x')
 end)
+
+Test('edge distance inside a turned box', function()
+    local S = PWP.Sentence
+    local box = { pos = { x = 0, y = 0, z = 0 }, size = { x = 100, y = 40, z = 10 }, heading = 0.0 }
+    Eq(S.edge({ x = 0, y = 0, z = 0 }, box), 20, 'centre: the short side is 20 away')
+    Eq(S.edge({ x = 45, y = 0, z = 0 }, box), 5, 'near the long end')
+    Eq(S.edge({ x = 0, y = 18, z = 0 }, box), 2, 'near a long side')
+    local turned = { pos = { x = 0, y = 0, z = 0 }, size = { x = 100, y = 40, z = 10 }, heading = 90.0 }
+    Eq(math.floor(S.edge({ x = 0, y = 45, z = 0 }, turned) + 0.5), 5, 'turned 90 degrees')
+end)
