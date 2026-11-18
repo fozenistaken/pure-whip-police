@@ -96,3 +96,14 @@ The wheel clamp model (`stream/pwp_wheel_clamp.ydr`) is built from `art/pwp_whee
 ## Tests
 
 `tests/run.lua` runs the plain-Lua unit tests of `shared/` with any Lua 5.4: `lua tests/run.lua .`
+
+`tests/harness/run.lua` runs the server code of this resource and pure-whip-courts against a simulated WHIP and FiveM
+(every export the code calls, events, threads on a virtual clock, inventories, cars) with real SQL on a throwaway
+MariaDB database (`pwp_harness`, dropped at the end). It walks every flow: casings and evidence, plate reader and speed
+cameras, booking and pleas, bail, hearings, deals and rulings, clamps and impound, K9, boards, the academy, escapes,
+CCTV and body cams. Run it from the folder holding both resources:
+
+    set PWP_HARNESS_DB=-uroot -p<password> -P3307 -h127.0.0.1
+    lua pure-whip-police/tests/harness/run.lua <path to pure-whip-police> <path to pure-whip-courts>
+
+Any WHIP call the simulation does not know is reported as missing, so a misspelt export fails the run.
