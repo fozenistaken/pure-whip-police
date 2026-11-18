@@ -70,6 +70,7 @@ function Fines.payAll(src, session)
     local acc = account()
     if acc then Whip.core:BankSystemDeposit(acc, total, { reason = 'Fines paid' }) end
     Whip.core:LogActivity(src, 'fines_paid', { detail = ('$%d for %d fines'):format(total, #ids) })
+    TriggerEvent(PWP.event('finesPaid'), { source = src, charId = charId, ids = ids, total = total })
     return total, #ids
 end
 
@@ -114,8 +115,10 @@ end)
 
 exports('Fine', function(charId, amount, opts) return Fines.issue(charId, amount, opts) end)
 exports('GetFines', function(charId) return Fines.list(charId, false) end)
-exports('VoidFine', function(id)
+function Fines.void(id)
     local changed = MySQL.update.await(q("UPDATE {t} SET `status` = 'void' WHERE `id` = ? AND `status` = 'unpaid'"), { tonumber(id) })
     if changed ~= 1 then return false, 'No unpaid fine with that id' end
     return true
-end)
+end
+
+exports('VoidFine', function(id) return Fines.void(id) end)

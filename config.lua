@@ -97,7 +97,7 @@ Config.ArmoryMaxEach = 10   -- most of one item an officer signs out in one go, 
 Config.Armory = {
     { id = 'patrol', label = 'Patrol kit', minLevel = 1, catalog = {
         gunny_stungun = 0, ammo_taser = 0, gunny_nightstick = 0, gunny_torch = 0, armour = 0,
-        ['pure-whip-police_evidence_bags'] = 0,
+        ['pure-whip-police_evidence_bags'] = 0, ['pure-whip-police_clamp'] = 0,
     } },
     { id = 'sidearm', label = 'Sidearm', minLevel = 10, catalog = {
         gunny_combatpistol = 0, gunny_mag_combatpistol = 0, ammo_9mm = 0,
@@ -211,6 +211,16 @@ Config.Cameras = {}
 -- bodycam: true turns the bodycam resource's first-person view on while an officer is on duty (needs the 'bodycam'
 -- resource); false leaves each player's own choice. Example: Config.Feeds = { seeMetres = 50.0, darkMinutes = 60, plateSeconds = 5, bodycam = true }
 Config.Feeds = { seeMetres = 60.0, darkMinutes = 30, plateSeconds = 4, bodycam = false }
+
+-- Wheel clamps (Patrol kit, used at a car's driver door). fine: $ the registered owner owes, 0-100000; the clamp comes
+-- off by itself when they pay their fines. cutSeconds: how long cutting one off with a lockpick takes, 5-120.
+-- Example: Config.Clamp = { fine = 400, cutSeconds = 40 }
+Config.Clamp = { fine = 250, cutSeconds = 25 }
+
+-- The impound lot. coords: where owners collect their cars (a WHIP garage is made there), heading: its facing.
+-- spawn: where a released car appears (vector4), or nil for 6 m in front of the office. fee: $ to get a car back,
+-- 0-100000. Example: Config.Impound = { coords = vector3(409.3, -1623.1, 29.3), heading = 230.0, spawn = nil, fee = 750 }
+Config.Impound = { coords = vector3(409.3, -1623.1, 29.3), heading = 230.0, spawn = nil, fee = 500 }
 
 -- Fines. account: the bank account number fines are paid into (e.g. 'WB-123456', a business account an admin made
 -- for the city); nil sends the money nowhere. Kiosks are points of kind 'kiosk', open to everyone.

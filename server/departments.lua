@@ -16,6 +16,15 @@ local PERMISSIONS = {
 local Depts = { permissions = PERMISSIONS }
 PWP.Depts = Depts
 
+function PWP.sourceOf(charId)
+    charId = tonumber(charId)
+    if not charId then return nil end
+    for src, p in pairs(Whip.core:GetPlayers({ light = true }) or {}) do
+        if p.charId == charId then return tonumber(src) end
+    end
+    return nil
+end
+
 function Depts.ofSource(src)
     for _, key in ipairs(PWP.deptKeys()) do
         if Whip.core:IsPlayerClockedOn(src, key) then return key end

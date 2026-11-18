@@ -2,13 +2,7 @@ local NS = PWP.RES .. ':mdt'
 local R, D, F, P = PWP.Records, PWP.Dispatch, PWP.Fines, PWP.Prison
 local PERMS = { 'records', 'warrants', 'fine', 'fine_custom', 'jail', 'command', 'prison_staff', 'dispatch' }
 
-local function sourceOf(charId)
-    charId = tonumber(charId)
-    for src, p in pairs(Whip.core:GetPlayers({ light = true }) or {}) do
-        if p.charId == charId then return tonumber(src) end
-    end
-    return nil
-end
+local sourceOf = PWP.sourceOf
 
 local function str(v, max) return PWP.Text.clean(type(v) == 'string' and v or tostring(v or ''), max) end
 local function num(v) return tonumber(v) and math.floor(tonumber(v)) or nil end

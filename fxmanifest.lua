@@ -42,9 +42,12 @@ server_scripts {
     'server/evidence.lua',
     'server/traffic.lua',
     'server/feeds.lua',
+    'server/impound.lua',
     'server/mdt.lua',
     'server/main.lua',
 }
+
+data_file 'DLC_ITYP_REQUEST' 'stream/pwp_wheel_clamp.ytyp'
 
 ui_page 'html/station/index.html'
 
@@ -58,9 +61,11 @@ client_scripts {
     'client/evidence.lua',
     'client/traffic.lua',
     'client/feeds.lua',
+    'client/impound.lua',
 }
 
 files {
+    'stream/pwp_wheel_clamp.ytyp',
     'html/station/index.html',
     'html/station/app.js',
     'html/mdt/module.js',

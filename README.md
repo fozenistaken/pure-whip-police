@@ -28,6 +28,7 @@ The default points sit in GTA's own interiors. Mission Row uses GTA's `v_policeh
 | Speed cameras | Place them in game: /whip → Settings → Police → Speed cameras → Here. Each has its limit, tolerance, radius and fine; the fine goes to the car's registered owner (the driver for an unowned car) as a normal fine. On-duty officers with sirens pass |
 | CCTV | Place cameras in game (/whip → Settings → Police → CCTV cameras → Here). MDT → Dispatch → Board → Cameras → Watch: look around with the mouse, wheel zooms, Q/E switch cameras, Backspace leaves. Cameras log what happens in front of them (shots, blood, speeding) and read passing plates into the MDT's "Last seen". A lockpick cuts a camera's feed (it goes dark, dispatch hears about it); an officer repairs it |
 | Body cams | MDT → Board → Body cams: watch another on-duty officer's chest camera. Each officer's body cam logs shots fired, cuffs and prison sentences. `Config.Feeds.bodycam = true` turns on the bodycam resource's first-person view while on duty |
+| Clamps and impound | Armory → Patrol kit has wheel clamps. At a car's driver door: Police → Clamp a wheel (the engine won't start, a yellow clamp sits on the front wheel, the registered owner is fined; paying their fines takes it off), Remove the clamp, Impound (owned cars go to the impound lot under police hold; street cars are towed away). Owners collect at the impound office (`Config.Impound`) for the fee. Anyone with a lockpick can cut a clamp off (it takes a while and dispatch hears about it) |
 | Cleaning up | A cleaning cloth wipes the gun in your hand (use it), a car's driver door, and blood |
 
 ## Swapping parts
@@ -66,6 +67,7 @@ Every export returns a result, or `false, why`.
 | `CreateEvidence('blood'│'hole'│'casing', coords, { charId │ serial, gun?, amount? })` | point id, or `true` for casings |
 | `GetEvidenceNear(coords, radius?)` | `{ kind, coords, at }[]` |
 | `CheckPlate(plate)` / `GetLastSeen(plate)` | `{ plate, bolo, owner, wanted }` / `{ x, y, z, at, by }` |
+| `Impound(vehicleId, { by?, dept?, reason? })` / `ReleaseImpound(vehicleId)` / `IsClamped(vehicleId)` | `true, 'impounded'│'towed'` / `true` / boolean |
 | `GetForensicCodes(charId)` / `FindCodeOwner(code)` | `{ dna, print }` / charId (only after their samples were taken) |
 
 ## Events (server)
@@ -80,10 +82,11 @@ Every export returns a result, or `false, why`.
 - `licenceChanged`
 - `evidenceCreated`, `evidenceCollected`, `evidenceAnalysed`
 - `plateSeen`, `plateHit`, `speedTicket`
+- `finesPaid`, `impounded`, `unclamped`
 
 ## Assets
 
-The pictures in `html/img/items/` and `html/img/tiers/` are generated (Gemini). Car and clothing pictures come from WHIP's media packs (whip_media_previews, whip_media_clothing_male/female).
+The wheel clamp model (`stream/pwp_wheel_clamp.ydr`) is built from `art/pwp_wheel_clamp.recipe.json` with the mapping tool's box recipe. The pictures in `html/img/items/` and `html/img/tiers/` are generated (Gemini). Car and clothing pictures come from WHIP's media packs (whip_media_previews, whip_media_clothing_male/female).
 
 ## Tests
 
