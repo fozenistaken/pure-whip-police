@@ -39,7 +39,8 @@ function H.me(src, dept)
     local u = D.units[src] or { status = 'available' }
     local p = Whip.core:GetPlayers({ light = true })[src] or {}
     return { dept = dept, deptLabel = PWP.dept(dept).label, short = PWP.dept(dept).short, rank = role.name,
-        level = role.level, name = p.fullName, callsign = D.callsign(src), status = u.status, perms = perms }
+        level = role.level, name = p.fullName, callsign = D.callsign(src), status = u.status, perms = perms,
+        courts = PWP.courts() ~= nil }
 end
 
 function H.dashboard(src, dept)
@@ -193,6 +194,23 @@ H.fine = { perm = 'fine', fn = function(src, dept, a)
     local target = sourceOf(charId)
     if target then Whip.core:NotifyPlayer(target, ('You were fined $%d. Pay at a police front desk.'):format(amount), 'warning') end
     return { id = id, amount = amount }
+end }
+
+H.book = { perm = 'jail', fn = function(src, dept, a)
+    local courts = PWP.courts()
+    if not courts then return false, 'There are no courts on this server' end
+    local charId = num(a.charId)
+    local target = charId and sourceOf(charId)
+    if not target then return false, 'They must be here, in your custody' end
+    if #(GetEntityCoords(GetPlayerPed(target)) - GetEntityCoords(GetPlayerPed(src))) > 5.0 then return false, 'They must be with you' end
+    if not PWP.Contact.isCuffed(target) then return false, 'Cuff them first' end
+    local _, list = chargesTotal(a.charges)
+    if #list == 0 then return false, 'Pick at least one charge' end
+    local ok, why = exports[courts]:Arraign({ officer = src, suspect = target, charges = list, dept = dept,
+        reportId = num(a.reportId) })
+    if not ok then return false, why end
+    Whip.core:LogActivity(src, 'booked', { detail = ('charId %d'):format(charId) })
+    return { pending = true }
 end }
 
 H.jail = { perm = 'jail', fn = function(src, dept, a)

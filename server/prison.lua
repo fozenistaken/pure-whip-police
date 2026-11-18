@@ -96,11 +96,15 @@ function Prison.jail(target, months, opts)
     if not charId then return false, 'They are not here' end
     if Prison.jailed[target] then return false, 'They are already in prison' end
     months = math.floor(tonumber(months) or 0)
-    if months < 1 or months > Config.Prison.maxMonths then
+    local minutes
+    if opts.remandMinutes then
+        months, minutes = 0, math.max(1, math.min(1440, math.floor(tonumber(opts.remandMinutes) or 0)))
+    elseif months < 1 or months > Config.Prison.maxMonths then
         return false, ('A sentence is 1 to %d months'):format(Config.Prison.maxMonths)
+    else
+        minutes = S.minutes(months, Config.Prison.minutesPerMonth)
     end
-    local minutes = S.minutes(months, Config.Prison.minutesPerMonth)
-    local reason = PWP.Text.clean(opts.reason, 200) or 'Sentenced'
+    local reason = PWP.Text.clean(opts.reason, 200) or (opts.remandMinutes and 'Held for court' or 'Sentenced')
     local stored, why = storeBelongings(target, charId)
     if not stored then return false, why or 'Their belongings could not be stored' end
     local id = MySQL.insert.await(q([[INSERT INTO {t} (`charId`, `months`, `minutesLeft`, `reason`, `dept`, `sentencedBy`, `reportId`)
@@ -109,7 +113,9 @@ function Prison.jail(target, months, opts)
     if PWP.Contact.isCuffed(target) then PWP.Contact.uncuff(opts.by, target) end
     admit(target, charId, { minutesLeft = minutes, months = months, reason = reason })
     teleport(target, cellSpot())
-    Whip.core:NotifyPlayer(target, ('Sentenced to %d months: %d minutes inside. Your things are kept at the gate.'):format(months, minutes), 'warning', 10000)
+    Whip.core:NotifyPlayer(target, opts.remandMinutes
+        and ('Held for court: up to %d minutes inside unless bail is posted. Your things are kept at the gate.'):format(minutes)
+        or ('Sentenced to %d months: %d minutes inside. Your things are kept at the gate.'):format(months, minutes), 'warning', 10000)
     TriggerEvent(PWP.event('jailed'), { source = target, charId = charId, months = months, minutes = minutes, by = opts.by })
     return true, minutes
 end
@@ -264,6 +270,12 @@ Whip.command('unjail', {}, function(source, args)
 end)
 
 exports('Jail', function(target, months, opts) return Prison.jail(tonumber(target), months, opts) end)
+exports('Hold', function(target, minutes, opts)
+    opts = type(opts) == 'table' and opts or {}
+    opts.remandMinutes = tonumber(minutes)
+    if not opts.remandMinutes then return false, 'minutes must be a number' end
+    return Prison.jail(tonumber(target), 0, opts)
+end)
 exports('Release', function(target, opts) return Prison.release(tonumber(target), opts) end)
 exports('IsJailed', function(target) return Prison.jailed[tonumber(target)] ~= nil end)
 exports('GetSentence', function(charId) return Prison.sentenceOf(charId) end)

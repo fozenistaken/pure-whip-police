@@ -21,6 +21,12 @@ function PWP.deptKeys()
     return keys
 end
 
+function PWP.courts()
+    local res = Config.Providers.courts
+    if type(res) ~= 'string' or res == 'none' or GetResourceState(res) ~= 'started' then return nil end
+    return res
+end
+
 function PWP.dept(key)
     return Config.Departments[key]
 end

@@ -314,6 +314,19 @@ Whip.register(function()
 end)
 
 exports('GetPenalCode', function() return Records.penalList end)
+exports('PriceCharges', function(charges)
+    local list = {}
+    for _, c in ipairs(type(charges) == 'table' and charges or {}) do
+        local def = type(c) == 'table' and Records.penal[c.code]
+        if def then
+            local count = math.max(1, math.min(20, math.floor(tonumber(c.count) or 1)))
+            list[#list + 1] = { code = def.code, title = def.title, category = def.category, count = count,
+                fine = def.fine * count, months = def.months * count }
+        end
+    end
+    local totals = PWP.Penal.totals(list, Records.penal)
+    return { charges = list, fine = totals.fine, months = totals.months }
+end)
 exports('GetRecord', function(charId) return Records.getRecord(charId) end)
 exports('AddReport', function(opts) return Records.addReport(opts) end)
 exports('GetReport', function(id)

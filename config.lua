@@ -239,9 +239,10 @@ Config.Prison = {
 
 -- Swappable parts. 'builtin' uses this resource's own; otherwise the name of a started resource that answers the
 -- same exports: dispatch SendAlert(alert) / ClearAlert(id); radio JoinChannel(src, channel) / LeaveChannel(src,
--- channel); mdt 'none' hides this MDT (another MDT reads records through this resource's exports).
--- Example: Config.Providers = { dispatch = 'my_dispatch', radio = 'builtin', mdt = 'builtin' }
-Config.Providers = { dispatch = 'builtin', radio = 'builtin', mdt = 'builtin' }
+-- channel); mdt 'none' hides this MDT (another MDT reads records through this resource's exports); courts: the
+-- courts resource that answers Arraign(spec) (pleas at booking), or 'none' to send arrests straight to prison.
+-- Example: Config.Providers = { dispatch = 'my_dispatch', radio = 'builtin', mdt = 'builtin', courts = 'none' }
+Config.Providers = { dispatch = 'builtin', radio = 'builtin', mdt = 'builtin', courts = 'pure-whip-courts' }
 
 -- Dispatch. duration: seconds a call stays, 30-3600. maxResponders: units that may attach, 1-20. onSceneRange: metres
 -- from the call that marks a unit on scene, 5-200. shotsFired: alert police when a non-officer fires a gun.

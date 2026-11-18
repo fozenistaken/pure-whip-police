@@ -371,12 +371,13 @@
       const t = totalsOf(app, chargeList(app));
       const both = pm.fine && pm.jail;
       const jail = pm.jail && (!pm.fine || s.outcome === 'jail');
+      const court = !!(s.me && s.me.courts);
       title = 'Charge ' + s.person.firstName + ' ' + s.person.lastName;
       body = `<label class="pwp-search">${B.icons.search}<input id="f-chargeQ" data-bind="chargeQ" value="${val(app, 'chargeQ')}" placeholder="Find a charge" autocomplete="off"></label>
         <div class="mdt-pick">${list.map((x) => `<div class="pwp-row"><span class="pwp-code">${B.esc(x.code)}</span><span class="t">${B.esc(x.title)}<span class="s"><span class="mdt-cat ${x.category}">${CAT[x.category] || ''}</span> · ${B.money(x.fine)} · ${x.months} mo</span></span><span class="pwp-step"><button data-act="count" data-c="${B.esc(x.code)}" data-d="-1" aria-label="One less">${B.icons.minus}</button><span class="num">${s.charges[x.code] || 0}</span><button data-act="count" data-c="${B.esc(x.code)}" data-d="1" aria-label="One more">${B.icons.plus}</button></span></div>`).join('') || '<div class="pwp-empty">No charge matches</div>'}</div>`;
       foot = `<div class="pwp-tot"><div><small>Fine</small><b class="num">${B.money(t.fine)}</b></div><div><small>Prison</small><b class="num">${t.months} mo</b></div></div>
         ${both ? `<div class="pwp-seg" data-glide="outcome" style="justify-self:start"><button class="${!jail ? 'on' : ''}" data-act="outcome" data-v="fine">Citation</button><button class="${jail ? 'on' : ''}" data-act="outcome" data-v="jail">Arrest</button></div>` : ''}
-        <button class="pwp-cta wide pwp-press" data-act="${jail ? 'jail' : 'fine'}" ${(jail ? t.months : t.fine) > 0 ? '' : 'disabled'}>${jail ? 'Send to prison' : 'Write citation'}</button>`;
+        <button class="pwp-cta wide pwp-press" data-act="${jail ? (court ? 'book' : 'jail') : 'fine'}" ${(jail ? t.months : t.fine) > 0 ? '' : 'disabled'}>${jail ? (court ? 'Book: ask for a plea' : 'Send to prison') : 'Write citation'}</button>`;
     } else if (k === 'note') {
       title = SHEET_TITLE.note;
       body = `<textarea id="f-noteText" class="pwp-in" data-bind="noteText" placeholder="What other officers should know about ${B.esc(s.person.firstName)}">${val(app, 'noteText')}</textarea>`;
@@ -595,6 +596,10 @@
     async fine(app) {
       const p = app.state.person;
       await ask(app, 'fine', { charId: p.charId, charges: chargeList(app) }, async (r) => { app.toast('Fined ' + B.money(r.amount)); app.state.charges = {}; app.state.sheet = null; await reloadPerson(app, p.charId); });
+    },
+    async book(app) {
+      const p = app.state.person;
+      await ask(app, 'book', { charId: p.charId, charges: chargeList(app) }, () => { app.toast('Asking ' + p.firstName + ' for a plea'); app.state.charges = {}; app.state.sheet = null; });
     },
     async jail(app) {
       const p = app.state.person; const list = chargeList(app);
