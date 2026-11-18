@@ -1,5 +1,6 @@
 (() => {
-  if (window.PWPBracket) return;
+  const SRC = document.currentScript ? document.currentScript.src : '';
+  if (window.PWPBracket && window.PWPBracket.src === SRC) return;
   const BASE = new URL('.', document.currentScript.src).href;
 
   const FONTS = `
@@ -169,6 +170,10 @@ button.pwp-row:active{transform:scale(.985)}
     back: icon('<path d="M15 5l-7 7 7 7"/>'),
     alert: icon('<path d="M12 4l9 16H3z"/><path d="M12 10v4M12 17.5v.5"/>'),
     arrow: icon('<path d="M5 12h14M13 6l6 6-6 6"/>'),
+    locate: icon('<circle cx="12" cy="12" r="6.5"/><circle cx="12" cy="12" r="2"/><path d="M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3"/>'),
+    map: icon('<path d="M3 6.5l6-2.5 6 2.5 6-2.5v13.5l-6 2.5-6-2.5-6 2.5z"/><path d="M9 4v13.5M15 6.5V20"/>'),
+    list: icon('<path d="M9 6h11M9 12h11M9 18h11"/><circle cx="4.5" cy="6" r=".6"/><circle cx="4.5" cy="12" r=".6"/><circle cx="4.5" cy="18" r=".6"/>'),
+    pin: icon('<path d="M12 21s-6.5-5.6-6.5-11a6.5 6.5 0 0113 0c0 5.4-6.5 11-6.5 11z"/><circle cx="12" cy="10" r="2.3"/>'),
   };
 
   const springAt = (t, response, damping) => {
@@ -229,6 +234,48 @@ button.pwp-row:active{transform:scale(.985)}
     if (memory) memory[key] = moved ? { ...to, from, t0: now } : { ...to };
   };
 
+  const RUNTIME_CLASSES = ['gone', 'enter', 'leave', 'kf', 'drag'];
+  const kept = (n) => n.nodeType === 1 && (n.classList.contains('pwp-glider') || n.hasAttribute('data-persist'));
+  const sameKind = (a, b) => a.nodeType === b.nodeType && a.nodeName === b.nodeName
+    && (a.nodeType !== 1 || (a.getAttribute('data-key') || '') === (b.getAttribute('data-key') || ''));
+
+  const morphAttrs = (o, n) => {
+    const fellBack = o.tagName === 'IMG' && o.dataset.orig && o.dataset.orig === n.getAttribute('src');
+    for (const at of [...o.attributes]) {
+      if (at.name === 'class' || at.name === 'style' || n.hasAttribute(at.name)) continue;
+      if (fellBack && at.name === 'data-orig') continue;
+      o.removeAttribute(at.name);
+    }
+    for (const at of [...n.attributes]) {
+      if (at.name === 'class') continue;
+      if (fellBack && (at.name === 'src' || at.name === 'data-alt')) continue;
+      if (o.getAttribute(at.name) !== at.value) o.setAttribute(at.name, at.value);
+    }
+    const runtime = RUNTIME_CLASSES.filter((c) => o.classList.contains(c));
+    const cls = [n.getAttribute('class') || '', ...runtime].join(' ').trim();
+    if ((o.getAttribute('class') || '') !== cls) { if (cls) o.setAttribute('class', cls); else o.removeAttribute('class'); }
+    if ((o.tagName === 'INPUT' || o.tagName === 'TEXTAREA') && document.activeElement !== o && o.value !== n.value) o.value = n.value;
+  };
+
+  const morphKids = (o, n) => {
+    const old = [...o.childNodes].filter((c) => !kept(c));
+    const want = [...n.childNodes];
+    want.forEach((w, i) => {
+      const c = old[i];
+      if (!c) o.appendChild(w);
+      else if (!sameKind(c, w)) o.replaceChild(w, c);
+      else if (c.nodeType === 1) { morphAttrs(c, w); if (c.tagName !== 'TEXTAREA' || document.activeElement !== c) morphKids(c, w); }
+      else if (c.nodeValue !== w.nodeValue) c.nodeValue = w.nodeValue;
+    });
+    for (let i = want.length; i < old.length; i++) old[i].remove();
+  };
+
+  const morph = (el, html) => {
+    const t = document.createElement('template');
+    t.innerHTML = html;
+    morphKids(el, t.content);
+  };
+
   const settle = (el, axis, percent) => {
     play(el, (p) => `translate${axis === 'y' ? 'Y' : 'X'}(${(percent * (1 - p)).toFixed(3)}%)`);
   };
@@ -236,5 +283,5 @@ button.pwp-row:active{transform:scale(.985)}
   const esc = (v) => String(v == null ? '' : v).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const money = (n) => '$' + Math.round(Number(n) || 0).toLocaleString('en-US');
 
-  window.PWPBracket = Object.freeze({ base: BASE, fonts: FONTS, css: CSS, icons, glide, settle, play, esc, money });
+  window.PWPBracket = Object.freeze({ src: SRC, base: BASE, fonts: FONTS, css: CSS, icons, glide, settle, play, esc, money, morph });
 })();

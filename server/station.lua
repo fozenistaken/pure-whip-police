@@ -8,7 +8,6 @@ local function near(src, row)
     return #(GetEntityCoords(ped) - vector3(row.coords.x, row.coords.y, row.coords.z)) <= Config.PointReach + 3.0
 end
 
---- kind: 'wardrobe' | 'garage' | 'armory' | 'locker' | 'stash'. build(src, session) returns the panel's data or false, why.
 function Station.kind(kind, def)
     Station.handlers[kind] = def
 end

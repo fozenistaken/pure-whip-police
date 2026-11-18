@@ -38,6 +38,7 @@ html,body{margin:0;height:100%;background:transparent;overflow:hidden}
 .art>svg{width:45%;height:45%}
 .art>img{position:absolute;inset:0;width:100%;height:100%;object-fit:contain}
 .art>img.gone{display:none}
+.art>img:not(.gone)+svg{display:none}
 .pick>button.on .art{background:rgba(14,16,19,.08)}
 .art.top{width:3.5rem;height:3.5rem}
 .art.car{width:6rem;height:3.375rem}
@@ -99,7 +100,11 @@ html,body{margin:0;height:100%;background:transparent;overflow:hidden}
   const post = (name, body) => fetch(`https://${RES}/${name}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body || {}) })
     .then((r) => r.json()).catch(() => ({ ok: false, why: 'No answer from the game' }));
 
-  const art = (cls, src, glyph, alt) => `<span class="art ${cls}">${glyph}${src ? `<img src="${esc(src)}" alt=""${alt ? ` data-alt="${esc(alt)}"` : ''}>` : ''}</span>`;
+  const art = (cls, src, glyph, alt) => {
+    const pic = src || alt;
+    const next = src ? alt : null;
+    return `<span class="art ${cls}">${pic ? `<img src="${esc(pic)}" alt=""${next ? ` data-alt="${esc(next)}"` : ''}>` : ''}${glyph}</span>`;
+  };
   const kg = (n) => (Math.round((Number(n) || 0) * 10) / 10).toFixed(1);
   const hint = (pairs) => `<div class="hint">${pairs.map(([k, l]) => `<span><span class="pwp-kbd">${k}</span>${l}</span>`).join('')}</div>`;
   const head = (title) => `<div class="st-head"><div class="k"><small>${esc(s.data.short)} · ${esc(s.data.title)}</small><h1>${esc(title)}</h1></div><button class="pwp-btn ghost icon pwp-press" data-a="close" aria-label="Close">${I.x}</button></div>`;
@@ -141,7 +146,7 @@ html,body{margin:0;height:100%;background:transparent;overflow:hidden}
         for (const it of st.items) bySlot[it.slot] = it;
         const cells = Array.from({ length: st.slots || 0 }, (_, i) => {
           const it = bySlot[i + 1];
-          return it ? `<button class="slot" data-a="move" data-from="${key}" data-slot="${i + 1}" title="${esc(it.label)}"><span class="nm">${esc(it.label)}</span>${art('', it.img, I.box, `../img/items/${it.item}.webp`)}<span class="n">${it.amount > 1 ? it.amount : ''}</span></button>` : '<div class="slot empty"></div>';
+          return it ? `<button class="slot" data-key="${key}${i + 1}" data-a="move" data-from="${key}" data-slot="${i + 1}" title="${esc(it.label)}"><span class="nm">${esc(it.label)}</span>${art('', it.img, I.box, `../img/items/${it.item}.webp`)}<span class="n">${it.amount > 1 ? it.amount : ''}</span></button>` : `<div class="slot empty" data-key="${key}${i + 1}"></div>`;
         }).join('');
         const weight = st.maxWeight ? `${kg(st.weight)} of ${kg(st.maxWeight)} kg` : `${kg(st.weight)} kg`;
         return `<div class="store"><div class="store-h"><b>${esc(label)}</b><span>${weight}</span></div><div class="slots">${cells}</div></div>`;
@@ -158,21 +163,67 @@ html,body{margin:0;height:100%;background:transparent;overflow:hidden}
     if (!s) { root.innerHTML = ''; return; }
     const view = viewOf(s.data.kind);
     root.className = 'pwp ' + (view === 'storage' ? 'at-center' : view === 'armory' ? 'at-right wide' : 'at-right');
-    const scrolls = [...root.querySelectorAll('.st-body,.items,.slots,.tiers')].map((n) => n.scrollTop);
-    root.innerHTML = VIEWS[viewOf(s.data.kind)]();
-    [...root.querySelectorAll('.st-body,.items,.slots,.tiers')].forEach((n, i) => { if (!fresh && scrolls[i]) n.scrollTop = scrolls[i]; });
-    if (fresh) root.firstElementChild.classList.add('enter');
+    const html = VIEWS[view]();
+    if (fresh || !root.firstElementChild || root.dataset.view !== view) {
+      root.innerHTML = html;
+      root.dataset.view = view;
+      if (fresh) root.firstElementChild.classList.add('enter');
+    } else {
+      B.morph(root, html);
+    }
     root.querySelectorAll('[data-g]').forEach((g) => B.glide(g, mem, g.dataset.g));
   }
 
-  async function act(action, args, after, failed) {
-    s.busy = true; s.err = null; render();
-    const r = await post('act', { action, args });
-    if (!s) return;
-    s.busy = false;
-    if (!r.ok) { s.err = r.why || 'Something went wrong'; if (failed) failed(); }
-    else if (after) after(r.data);
-    render();
+  const BUSY_MS = 300;
+  const GAP_MS = 160;
+  let pending = 0;
+  let busyTimer = 0;
+  let lastSent = 0;
+
+  const paced = (body) => new Promise((done) => {
+    const wait = Math.max(0, lastSent + GAP_MS - performance.now());
+    setTimeout(() => { lastSent = performance.now(); done(post('act', body)); }, wait);
+  });
+
+  const SHOWN = { move: true, read: true, wear: true };
+
+  function act(action, args, after, failed) {
+    const mine = s;
+    const waited = !SHOWN[action];
+    if (waited) pending += 1;
+    if (action !== 'read') s.err = null;
+    s.inflight[action] = (s.inflight[action] || 0) + 1;
+    if (waited && !busyTimer) busyTimer = setTimeout(() => { busyTimer = 0; if (s === mine && pending) { s.busy = true; render(); } }, BUSY_MS);
+    s.queue = s.queue.then(() => paced({ action, args })).then((r) => {
+      if (waited) pending -= 1;
+      if (s !== mine) return;
+      s.inflight[action] -= 1;
+      if (!r.ok) { s.err = r.why || 'Something went wrong'; if (failed) failed(); }
+      else if (after) after(r.data);
+      if (!pending) { clearTimeout(busyTimer); busyTimer = 0; s.busy = false; }
+      render();
+    });
+  }
+
+  const SIDES = { pockets: 'store', store: 'pockets' };
+
+  function predictMove(from, slot, one) {
+    const src = s.data[from];
+    const dst = s.data[SIDES[from]];
+    const it = src.items.find((x) => x.slot === slot);
+    if (!it) return;
+    const amount = one ? 1 : it.amount;
+    const onto = dst.items.find((x) => x.item === it.item);
+    if (onto) onto.amount += amount;
+    else {
+      const used = new Set(dst.items.map((x) => x.slot));
+      let free = 1;
+      while (used.has(free)) free += 1;
+      if (free > (dst.slots || 0)) return;
+      dst.items.push({ ...it, slot: free, amount });
+    }
+    it.amount -= amount;
+    if (it.amount <= 0) src.items.splice(src.items.indexOf(it), 1);
   }
 
   function close() {
@@ -191,13 +242,18 @@ html,body{margin:0;height:100%;background:transparent;overflow:hidden}
       const i = d.i === 'own' ? 'own' : Number(d.i);
       const u = s.data.uniforms.find((x) => x.i === i);
       if (u && u.locked) return;
-      const before = s.pick;
-      s.pick = i; render();
-      act('wear', { i }, null, () => { s.pick = before; });
+      s.pick = i;
+      render();
+      if (s.inflight.wear) return;
+      const send = (want) => act('wear', { i: want }, () => {
+        s.worn = want;
+        if (s.pick !== want) send(s.pick);
+      }, () => { s.pick = s.worn; });
+      send(i);
     },
     pickCar(d) { const c = s.data.cars.find((x) => x.i === Number(d.i)); if (c && !c.locked) { s.pick = c.i; render(); } },
-    take() { act('take', { i: s.pick }, (data) => { if (data) Object.assign(s.data, data); }); },
-    return() { act('return', {}, (data) => { if (data) Object.assign(s.data, data); }); },
+    take() { if (!s.inflight.take) act('take', { i: s.pick }, (data) => { if (data) Object.assign(s.data, data); }); },
+    return() { if (!s.inflight.return) act('return', {}, (data) => { if (data) Object.assign(s.data, data); }); },
     tier(d) { s.pick = d.t; render(); },
     count(d) {
       const tier = s.data.tiers.find((t) => t.id === s.pick) || s.data.tiers[0];
@@ -207,15 +263,25 @@ html,body{margin:0;height:100%;background:transparent;overflow:hidden}
       render();
     },
     armory() {
+      if (s.inflight.take) return;
       const tier = s.data.tiers.find((t) => t.id === s.pick) || s.data.tiers[0];
       act('take', { tier: tier.id, items: s.take[tier.id] || {} }, () => { s.take[tier.id] = {}; });
     },
-    move(d, e) { act('move', { from: d.from, slot: Number(d.slot), one: !!(e && e.shiftKey) }, (data) => { if (data) Object.assign(s.data, data); }); },
+    move(d, e) {
+      const one = !!(e && e.shiftKey);
+      predictMove(d.from, Number(d.slot), one);
+      render();
+      act('move', { from: d.from, slot: Number(d.slot), one }, (data) => {
+        if (data && !s.inflight.move && !s.inflight.read) Object.assign(s.data, data);
+      }, () => {
+        if (!s.inflight.read) act('read', {}, (data) => { if (data) Object.assign(s.data, data); });
+      });
+    },
   };
 
   root.addEventListener('click', (e) => {
     const t = e.target.closest('[data-a]');
-    if (!t || !s || t.disabled || s.busy) return;
+    if (!t || !s || t.disabled) return;
     const fn = ACTIONS[t.dataset.a];
     if (fn) fn({ ...t.dataset }, e);
   });
@@ -223,7 +289,7 @@ html,body{margin:0;height:100%;background:transparent;overflow:hidden}
   document.addEventListener('error', (e) => {
     const img = e.target;
     if (!(img instanceof HTMLImageElement)) return;
-    if (img.dataset.alt) { const alt = img.dataset.alt; delete img.dataset.alt; img.src = alt; return; }
+    if (img.dataset.alt) { const alt = img.dataset.alt; img.dataset.orig = img.getAttribute('src'); delete img.dataset.alt; img.src = alt; return; }
     img.classList.add('gone');
   }, true);
 
@@ -249,7 +315,6 @@ html,body{margin:0;height:100%;background:transparent;overflow:hidden}
   document.addEventListener('keydown', (e) => {
     if (!s) return;
     if (e.key === 'Escape' || e.key === 'Backspace') { e.preventDefault(); close(); return; }
-    if (s.busy) return;
     if (e.key === 'ArrowDown' || e.key === 'ArrowUp') { e.preventDefault(); stepList(e.key === 'ArrowDown' ? 1 : -1); return; }
     if (e.key === 'Enter') {
       const cta = root.querySelector('.pwp-cta:not([disabled])');
@@ -266,7 +331,7 @@ html,body{margin:0;height:100%;background:transparent;overflow:hidden}
       if (d.kind === 'garage') { const c = (d.cars || []).find((x) => !x.locked); pick = c ? c.i : null; }
       if (d.kind === 'armory') { const t = (d.tiers || []).find((x) => !x.locked) || (d.tiers || [])[0]; pick = t ? t.id : null; }
       for (const k in mem) delete mem[k];
-      s = { data: d, pick, take: {}, err: null, busy: false };
+      s = { data: d, pick, worn: pick, take: {}, err: null, busy: false, inflight: {}, queue: Promise.resolve() };
       render(true);
     } else if (m.action === 'close') {
       if (s) { const panel = root.firstElementChild; s = null; if (panel) { panel.classList.add('leave'); panel.addEventListener('animationend', () => { if (!s) root.innerHTML = ''; }, { once: true }); } }

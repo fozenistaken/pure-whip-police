@@ -35,8 +35,6 @@ local function lockText(src, dept, entry)
     return why
 end
 
--- storage: a personal locker or a station stash, shown beside the pockets
-
 local function lockerOf(charId)
     if Gear.lockers[charId] then return Gear.lockers[charId] end
     local def, why = Whip.core:EnsureContainer(('%s:locker:%d'):format(PWP.RES, charId), {
@@ -68,6 +66,7 @@ end
 local storage = {
     build = function(src, session) return bothSides(src, session) end,
     actions = {
+        read = function(src, session) return bothSides(src, session) end,
         move = function(src, session, a)
             local slot = tonumber(a.slot)
             if not slot or slot < 1 or slot % 1 ~= 0 then return false, 'Pick an item' end
@@ -118,8 +117,6 @@ PWP.Points.kind('stash', {
     require = { onDuty = true },
     onUse = function(source, dept, row) return Station.open(source, 'stash', dept, row) end,
 })
-
--- armory: sign out kit from the tiers your rank and licences open
 
 local function tierItems(tier)
     local list = {}
@@ -189,8 +186,6 @@ PWP.Points.kind('armory', {
     onUse = function(source, dept, row) return Station.open(source, 'armory', dept, row) end,
 })
 
--- wardrobe: duty uniforms, worn until you change or go off duty
-
 Station.kind('wardrobe', {
     build = function(src, session)
         local ok, why = onDutyAt(src, session.dept)
@@ -223,8 +218,6 @@ PWP.Points.kind('wardrobe', {
     require = { onDuty = true },
     onUse = function(source, dept, row) return Station.open(source, 'wardrobe', dept, row) end,
 })
-
--- fleet: one car per officer, taken here and returned here
 
 local function removeFleetCar(src)
     local out = Gear.fleet[src]
