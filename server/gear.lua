@@ -266,7 +266,7 @@ Station.kind('garage', {
 
 PWP.Points.kind('garage', {
     icon = 'garage',
-    seeFrom = Config.Fleet.seeFrom,
+    seeFrom = Config.FleetPoints.seeFrom,
     require = { onDuty = true, jobPermission = 'fleet' },
     onUse = function(source, dept, row) return Station.open(source, 'garage', dept, row) end,
 })
@@ -286,8 +286,8 @@ Whip.register(function()
         elseif row.kind == 'garage' and PWP.isDept(row.dept) then
             local d = PWP.dept(row.dept)
             local ok, why = Whip.core:ShowBlip({ job = row.dept }, 'fleet_' .. index, {
-                coords = row.coords, label = ('%s %s'):format(d.short, row.label), sprite = Config.Fleet.sprite,
-                color = d.color, shortRange = true,
+                coords = row.coords, label = ('%s %s'):format(d.short, row.label),
+                sprite = Config.FleetPoints.sprite, color = d.color, shortRange = true,
             })
             if not ok then print(('[%s] fleet %d blip: %s'):format(PWP.RES, index, tostring(why))) end
         end
