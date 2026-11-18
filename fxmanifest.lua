@@ -56,6 +56,7 @@ files {
     'html/station/index.html',
     'html/station/app.js',
     'html/mdt/module.js',
+    'html/mdt/livemap.js',
     'html/shared/bracket.js',
     'html/shared/fonts/*.woff2',
     'html/img/items/*.webp',

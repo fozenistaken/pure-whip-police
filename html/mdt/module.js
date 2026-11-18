@@ -83,6 +83,15 @@
 .mdt-call .acts{display:flex;gap:.375rem;margin-top:.375rem}
 .mdt-call .acts .pwp-btn{flex:1}
 .mdt-call .acts .pwp-btn.ghost{flex:none}
+.mdt-call .acts .pwp-btn.icon{flex:none;width:2rem}
+.mdt-call.on{box-shadow:inset 0 0 0 1px var(--accent)}
+.mdt-call .pick{display:grid;gap:.1875rem;border-radius:.25rem}
+.mdt-mapwrap{position:relative;flex:1;min-height:0;margin-bottom:1rem}
+.mdt.ph .mdt-mapwrap{margin:0 -1rem;border-radius:0}
+.mdt.ph .mdt-mapwrap .mm{border-radius:0}
+.mdt-map-slot{position:absolute;inset:0}
+.mdt-mapcard{position:absolute;left:.75rem;right:.75rem;bottom:.75rem;z-index:4}
+.mdt-mapcard .mdt-call{background:var(--panel);box-shadow:inset 0 0 0 1px var(--line)}
 
 .mdt-pick{border-radius:var(--r);background:var(--bg);padding:.25rem .625rem}
 .mdt-pick .pwp-row{padding:.5rem 0}
@@ -195,11 +204,12 @@
     const hi = c.priority === 'high';
     const p = perms(app);
     const who = n ? ': ' + c.responders.map((r) => B.esc(r.callsign)).join(', ') : '';
-    return `<article class="mdt-call ${hi ? 'hi pwp-bracket danger' : mine ? 'pwp-bracket' : ''}">
-      <span class="c">${B.esc(c.code)} · ${ago(c.createdAt)}</span><b>${B.esc(c.title)}</b>
+    const picked = app.state.pick === c.id;
+    return `<article class="mdt-call ${hi ? 'hi pwp-bracket danger' : mine ? 'pwp-bracket' : ''} ${picked ? 'on' : ''}" data-call="${c.id}">
+      <button class="pick" data-act="pickCall" data-id="${c.id}" aria-pressed="${picked}"><span class="c">${B.esc(c.code)} · ${ago(c.createdAt)}</span><b>${B.esc(c.title)}</b>
       ${(c.info || []).map((l) => `<span>${B.esc(l)}</span>`).join('')}
-      <span>${n} of ${c.maxResponders} units${who}</span>
-      ${p.dispatch ? `<div class="acts">${mine ? `<button class="pwp-btn sm pwp-press" data-act="detach" data-id="${c.id}">Leave</button>` : `<button class="pwp-btn sm inv pwp-press" data-act="attach" data-id="${c.id}">Respond</button>`}<button class="pwp-btn sm ghost pwp-press" data-act="clearCall" data-id="${c.id}">Close</button></div>` : ''}
+      <span>${n} of ${c.maxResponders} units${who}</span></button>
+      <div class="acts">${p.dispatch ? (mine ? `<button class="pwp-btn sm pwp-press" data-act="detach" data-id="${c.id}">Leave</button>` : `<button class="pwp-btn sm inv pwp-press" data-act="attach" data-id="${c.id}">Respond</button>`) : ''}<button class="pwp-btn sm ghost icon pwp-press" data-act="waypoint" data-id="${c.id}" aria-label="Set a waypoint">${B.icons.pin}</button>${p.dispatch ? `<button class="pwp-btn sm ghost pwp-press" data-act="clearCall" data-id="${c.id}">Close</button>` : ''}</div>
     </article>`;
   };
   const callList = (app) => {
@@ -216,14 +226,22 @@
 
   const reportRow = (r) => `<button class="pwp-row" data-act="openReport" data-id="${r.id}"><span class="pwp-code">#${r.id}</span><span class="t">${B.esc(r.title)}<span class="s">${B.esc((r.dept || '').toUpperCase())} · ${when(r.createdAt)}</span></span>${r.status === 'closed' ? '<span class="pwp-flag">Closed</span>' : ''}</button>`;
 
-  const head = (title, back) => `<div class="mdt-h">${back ? `<button class="pwp-btn ghost pwp-press" data-act="${back}">${B.icons.back}Back</button>` : ''}<h1>${B.esc(title)}</h1></div>`;
+  const head = (title, back, extra) => `<div class="mdt-h">${back ? `<button class="pwp-btn ghost pwp-press" data-act="${back}">${B.icons.back}Back</button>` : ''}<h1>${B.esc(title)}</h1>${extra || ''}</div>`;
+  const hasMap = () => !!window.PWPLiveMap;
+  const onMap = (s) => s.nav === 'dispatch' && s.dview === 'map' && hasMap();
   const scroll = (inner, key) => `<div class="mdt-scroll" data-scroll="${key}">${inner}</div>`;
 
   const screens = {
     dispatch(app, phone) {
-      const recent = app.state.recent || [];
+      const s = app.state;
+      const recent = s.recent || [];
+      const seg = hasMap() ? `<div class="pwp-seg" data-glide="dview">${[['map', 'Map', 'map'], ['board', 'Board', 'list']].map(([v, label, ic]) => `<button class="${s.dview === v ? 'on' : ''}" data-act="dview" data-v="${v}" aria-pressed="${s.dview === v}">${B.icons[ic]}${label}</button>`).join('')}</div>` : '';
+      if (onMap(s)) {
+        const c = phone && s.pick != null ? (s.calls || []).find((x) => x.id === s.pick) : null;
+        return { body: head('Dispatch', null, seg) + `<div class="mdt-mapwrap"><div class="mdt-map-slot"></div>${c ? `<div class="mdt-mapcard pwp-fade">${callCard(app, c)}</div>` : ''}</div>` };
+      }
       const calls = phone ? `<section class="pwp-card"><p class="pwp-lbl">Live calls</p><div style="display:grid;gap:.625rem">${callList(app)}</div></section>` : '';
-      return { body: head('Dispatch') + scroll(`${calls}
+      return { body: head('Dispatch', null, seg) + scroll(`${calls}
         <section class="pwp-card"><p class="pwp-lbl">Units on duty</p>${unitRows(app)}</section>
         <section class="pwp-card"><p class="pwp-lbl">Latest reports</p>${recent.length ? recent.map(reportRow).join('') : '<div class="pwp-empty">No reports yet</div>'}</section>`, 'dispatch') };
     },
@@ -396,6 +414,42 @@
     return `<div class="pwp mdt tab">${top}${nav}${main}<aside class="mdt-side"><p class="pwp-lbl">Live calls</p><div class="mdt-calls">${callList(app)}</div></aside></div>`;
   };
 
+  const POLL_MS = 2000;
+  const mapControls = () => `<button class="pwp-btn pwp-press" data-act="mapZoom" data-d="1" aria-label="Zoom in">${B.icons.plus}</button><button class="pwp-btn pwp-press" data-act="mapZoom" data-d="-1" aria-label="Zoom out">${B.icons.minus}</button><button class="pwp-btn pwp-press" data-act="mapMe" aria-label="Centre on me">${B.icons.locate}</button><button class="pwp-btn pwp-press mm-3d" data-act="mapTilt" aria-label="3D view">3D</button>`;
+  const mapOf = (app) => {
+    const ctx = live.get(app);
+    if (!ctx || !hasMap() || !B) return null;
+    if (!ctx.map) {
+      ctx.map = new window.PWPLiveMap.LiveMap({
+        controls: mapControls(),
+        onTap: () => { if (app.state.pick != null) run(app, 'unpick'); },
+        onWaypoint: (x, y) => ask(app, 'waypoint', { x, y }, () => app.toast('Waypoint set'), true),
+      });
+    }
+    return ctx.map;
+  };
+  const pollMap = (app) => ask(app, 'map', {}, (r) => {
+    const s = app.state; const map = mapOf(app);
+    if (!r || !map) return;
+    const before = JSON.stringify(s.calls);
+    s.calls = r.calls;
+    map.setUnits(r.units);
+    if (JSON.stringify(s.calls) !== before) draw(app);
+  }, true);
+  const stopPoll = (ctx) => { if (ctx && ctx.poll) { clearInterval(ctx.poll); ctx.poll = 0; } };
+  const startPoll = (app, ctx) => {
+    if (ctx.poll) return;
+    ctx.poll = setInterval(() => { if (ctx.el.isConnected && ctx.el.offsetParent) pollMap(app); }, POLL_MS);
+    pollMap(app);
+  };
+  const syncMap = (app, ctx, root) => {
+    const map = mapOf(app);
+    if (!map) return;
+    const slot = root.querySelector('.mdt-map-slot');
+    if (slot) { map.attach(slot); map.setCalls(app.state.calls, app.state.pick); startPoll(app, ctx); }
+    else { map.detach(); stopPoll(ctx); }
+  };
+
   const draw = (app) => {
     const ctx = live.get(app);
     if (!ctx || !B) return;
@@ -411,6 +465,12 @@
     root.innerHTML = render(app, view && view.size === 'phone');
     root.querySelectorAll('[data-scroll]').forEach((n) => { if (scrolls[n.dataset.scroll]) n.scrollTop = scrolls[n.dataset.scroll]; });
     root.querySelectorAll('[data-glide]').forEach((g) => B.glide(g, ctx.mem, g.dataset.glide));
+    syncMap(app, ctx, root);
+    if (app.state.scrollCall != null) {
+      const card = root.querySelector(`.mdt-side [data-call="${app.state.scrollCall}"]`);
+      if (card) card.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+      app.state.scrollCall = null;
+    }
     const sh = root.querySelector('.pwp-sheet');
     if (sh && !sheetWas) {
       B.settle(sh, sh.classList.contains('pwp-from-below') ? 'y' : 'x', 102);
@@ -436,6 +496,16 @@
     sh.animate([{ transform: 'none' }, { transform: out }], { duration: 160, easing: 'cubic-bezier(.23,1,.32,1)', fill: 'forwards' }).onfinish = done;
   };
 
+  const shownFirst = async (app, action, args, status) => {
+    const me = app.state.me;
+    const before = me.status;
+    me.status = status;
+    draw(app);
+    const r = await ask(app, action, args, null, true);
+    if (r === null) { me.status = before; draw(app); return; }
+    if (action !== 'status') await load(app);
+  };
+
   const reloadPerson = (app, id) => ask(app, 'person', { charId: id }, (r) => { app.state.person = r; });
 
   const actions = {
@@ -447,10 +517,37 @@
       if (d.t !== 'reports') s.edit = null;
       await load(app);
     },
-    async status(app, d) { await ask(app, 'status', { status: d.s }, () => { app.state.me.status = d.s; }); },
-    async attach(app, d) { await ask(app, 'attach', { id: Number(d.id) }, async () => { app.state.me.status = 'enroute'; await load(app); }); },
-    async detach(app, d) { await ask(app, 'detach', { id: Number(d.id) }, async () => { app.state.me.status = 'available'; await load(app); }); },
-    async clearCall(app, d) { await ask(app, 'clearCall', { id: Number(d.id) }, () => load(app)); },
+    async status(app, d) { await shownFirst(app, 'status', { status: d.s }, d.s); },
+    async attach(app, d) { await shownFirst(app, 'attach', { id: Number(d.id) }, 'enroute'); },
+    async detach(app, d) { await shownFirst(app, 'detach', { id: Number(d.id) }, 'available'); },
+    async clearCall(app, d) { await ask(app, 'clearCall', { id: Number(d.id) }, () => { if (app.state.pick === Number(d.id)) app.state.pick = null; return load(app); }); },
+    dview(app, d) { app.state.dview = d.v; if (d.v !== 'map') app.state.pick = null; },
+    async pickCall(app, d) {
+      const s = app.state; const id = Number(d.id);
+      const c = (s.calls || []).find((x) => x.id === id);
+      if (!c) return;
+      s.pick = id; s.scrollCall = id;
+      if (!hasMap()) return;
+      const moved = s.nav !== 'dispatch';
+      s.nav = 'dispatch'; s.dview = 'map'; s.person = null; s.edit = null; s.sheet = null; s.err = null;
+      const map = mapOf(app);
+      const ctx = live.get(app);
+      const phone = ctx && ctx.view && ctx.view.size === 'phone';
+      if (map && c.coords) map.slideTo(c.coords.x, c.coords.y, undefined, 420, phone ? map.host.clientHeight * 0.25 : 0);
+      if (moved) await load(app);
+    },
+    unpick(app) { app.state.pick = null; },
+    mapZoom(app, d) { const map = mapOf(app); if (map) map.zoomBy(Number(d.d)); return 'skip'; },
+    mapMe(app) { const map = mapOf(app); if (map) map.centreOnMe(); return 'skip'; },
+    mapTilt(app) { const map = mapOf(app); if (map) map.toggleTilt(); return 'skip'; },
+    async waypoint(app, d) {
+      const c = (app.state.calls || []).find((x) => x.id === Number(d.id));
+      await ask(app, 'waypoint', { id: Number(d.id) }, () => {
+        const map = mapOf(app);
+        if (map && c && c.coords) map.setWaypoint({ x: c.coords.x, y: c.coords.y });
+        app.toast('Waypoint set');
+      });
+    },
     async search(app) {
       const s = app.state; const q = String(s.f.q || '').trim();
       if (!q) return;
@@ -591,6 +688,7 @@
       if (tag === 'INPUT' || tag === 'TEXTAREA') return;
       const s = app.state;
       if (e.key === '/') { const q = el.querySelector('#f-q'); if (q) { e.preventDefault(); q.focus(); q.select(); } }
+      else if ((e.key === '+' || e.key === '=' || e.key === '-') && onMap(s) && !s.sheet) { e.preventDefault(); run(app, 'mapZoom', { d: e.key === '-' ? -1 : 1 }); }
       else if ((e.key === 'c' || e.key === 'C') && s.person && !s.sheet && s.nav === 'records') { e.preventDefault(); run(app, 'openSheet', { k: 'charge' }); }
     };
     doc.addEventListener('keydown', onKey);
@@ -600,7 +698,7 @@
   const DEF = {
     id: 'pwpmdt', name: 'MDT', version: '0.3.0', order: 5, statusBar: 'light',
     icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 2.5l7.5 3v5.7c0 4.6-3.2 8.5-7.5 10.3-4.3-1.8-7.5-5.7-7.5-10.3V5.5z"/><path d="M12 8.2l1.3 2.6 2.9.4-2.1 2 .5 2.9-2.6-1.4-2.6 1.4.5-2.9-2.1-2 2.9-.4z"/></svg>',
-    state: () => ({ nav: 'dispatch', me: null, err: null, busy: 0, charges: {}, rtab: 'overview', outcome: 'fine', sheet: null, f: { pCat: 'misdemeanor' } }),
+    state: () => ({ nav: 'dispatch', dview: 'map', pick: null, me: null, err: null, busy: 0, charges: {}, rtab: 'overview', outcome: 'fine', sheet: null, f: { pCat: 'misdemeanor' } }),
     mount(app, el, view) {
       el.innerHTML = '<div class="mdt-root"></div>';
       const ctx = { el, view, mem: {} };
@@ -613,7 +711,11 @@
       if (!ctx) return;
       if (ctx.el !== el || (view && ctx.view && ctx.view.size !== view.size)) { ctx.el = el; ctx.view = view; ctx.mem = {}; draw(app); }
     },
-    unmount(app) { const ctx = live.get(app); if (ctx && ctx.off) ctx.off(); live.delete(app); },
+    unmount(app) {
+      const ctx = live.get(app);
+      if (ctx) { if (ctx.off) ctx.off(); stopPoll(ctx); if (ctx.map) ctx.map.detach(); }
+      live.delete(app);
+    },
     async open(app) {
       await ask(app, 'me', {}, (r) => { app.state.me = r; });
       if (app.state.me) await load(app);
@@ -621,6 +723,7 @@
     back(app) {
       const s = app.state;
       if (s.sheet) { closeSheet(app); return true; }
+      if (s.pick != null) { s.pick = null; draw(app); return true; }
       if (s.edit) { s.edit = null; load(app); draw(app); return true; }
       if (s.person) { s.person = null; draw(app); return true; }
       if (s.nav !== 'dispatch') { s.nav = 'dispatch'; load(app); draw(app); return true; }
@@ -628,23 +731,27 @@
     },
     on: {
       alert(app, a) { const s = app.state; s.calls = [a].concat((s.calls || []).filter((c) => c.id !== a.id)); draw(app); },
-      alertCleared(app, d) { const s = app.state; s.calls = (s.calls || []).filter((c) => c.id !== d.id); draw(app); },
+      alertCleared(app, d) { const s = app.state; s.calls = (s.calls || []).filter((c) => c.id !== d.id); if (s.pick === d.id) s.pick = null; draw(app); },
     },
     badge(app) { return (app.state.calls || []).length || 0; },
   };
 
   WhipPhone.module(DEF);
 
-  const withStyle = () => {
-    B = window.PWPBracket;
-    WhipPhone.module({ ...DEF, css: B.css + CSS, globalCss: B.fonts });
-  };
-  if (window.PWPBracket) withStyle();
-  else if (SELF) {
+  const need = (name, path) => new Promise((resolve) => {
+    if (!SELF) return resolve(!!window[name]);
+    const url = new URL(path, SELF);
+    url.search = new URL(SELF).search;
+    if (window[name] && window[name].src === url.href) return resolve(true);
     const s = document.createElement('script');
-    s.src = new URL('../shared/bracket.js', SELF).href;
-    s.onload = withStyle;
-    s.onerror = () => console.warn('[pure-whip-police] MDT: could not load html/shared/bracket.js');
+    s.src = url.href;
+    s.onload = () => resolve(!!window[name]);
+    s.onerror = () => { console.warn('[pure-whip-police] MDT: could not load ' + path); resolve(!!window[name]); };
     document.head.appendChild(s);
-  }
+  });
+  Promise.all([need('PWPBracket', '../shared/bracket.js'), need('PWPLiveMap', './livemap.js')]).then(([style]) => {
+    if (!style) return;
+    B = window.PWPBracket;
+    WhipPhone.module({ ...DEF, css: B.css + (window.PWPLiveMap ? window.PWPLiveMap.css : '') + CSS, globalCss: B.fonts });
+  });
 })();

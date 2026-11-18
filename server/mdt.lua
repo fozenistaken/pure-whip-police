@@ -201,6 +201,47 @@ H.detach = { perm = 'dispatch', fn = function(src, _, a) return D.detach(src, nu
 H.clearCall = { perm = 'dispatch', fn = function(_, _, a) return D.clear(num(a.id)) end }
 function H.status(src, _, a) return D.setStatus(src, a.status) end
 
+local KINDS = { boat = 'boat', submarine = 'boat', heli = 'air', plane = 'air' }
+
+local function where(src)
+    local ped = GetPlayerPed(src)
+    if not ped or ped == 0 then return nil end
+    local c = GetEntityCoords(ped)
+    local veh = GetVehiclePedIsIn(ped, false)
+    local kind, sirens = 'foot', nil
+    if veh and veh ~= 0 then
+        kind = KINDS[GetVehicleType(veh)] or 'car'
+        sirens = IsVehicleSirenOn(veh) or nil
+    end
+    return { x = math.floor(c.x * 10 + 0.5) / 10, y = math.floor(c.y * 10 + 0.5) / 10,
+        h = math.floor(GetEntityHeading(ped) + 0.5), kind = kind, sirens = sirens }
+end
+
+function H.map(src, dept)
+    local units = {}
+    for _, u in ipairs(D.units_()) do
+        local at = where(u.source)
+        if at then
+            at.callsign, at.dept, at.status, at.alert, at.me = u.callsign, u.dept, u.status, u.alert, u.source == src or nil
+            units[#units + 1] = at
+        end
+    end
+    return { calls = D.list(dept), units = units }
+end
+
+function H.waypoint(src, dept, a)
+    local id = num(a.id)
+    if not id then
+        local x, y = tonumber(a.x), tonumber(a.y)
+        if not x or not y or math.abs(x) > 9000 or math.abs(y) > 9000 then return false, 'Pick a place on the map' end
+        return Whip.core:SetPlayerWaypoint(src, vector3(x + 0.0, y + 0.0, 0.0))
+    end
+    for _, c in ipairs(D.list(dept)) do
+        if c.id == id then return Whip.core:SetPlayerWaypoint(src, vector3(c.coords.x, c.coords.y, c.coords.z)) end
+    end
+    return false, 'That call is over'
+end
+
 H.prisoners = { perm = 'prison_staff', fn = function()
     local rows = MySQL.query.await("SELECT `charId`, `months`, `minutesLeft`, `reason`, `createdAt` FROM `pure_whip_police_sentences` WHERE `status` = 'active' ORDER BY `id` DESC LIMIT 100") or {}
     for _, r in ipairs(rows) do
