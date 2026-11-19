@@ -74,6 +74,9 @@ function GetEntityCoords(e) local x = C.entities[e] return x and x.coords or vec
 function GetEntityHeading() return 90.0 end
 function GetEntityForwardVector() return vector3(0, 1, 0) end
 function GetOffsetFromEntityGivenWorldCoords(e, c) return vector3(c.x, c.y, c.z) end
+function GetVehicleWheelTireColliderSize() return 0.36 end
+function GetVehicleWheelTireColliderWidth() return 0.26 end
+function AttachEntityToEntity(obj, veh, bone, x, y, z) C.natives.AttachEntityToEntity = (C.natives.AttachEntityToEntity or 0) + 1 C.attached = C.attached or {} C.attached[#C.attached + 1] = { x = x, z = z } end
 function GetOffsetFromEntityInWorldCoords(e, x, y, z) return vector3(x, y, z) end
 function GetWorldPositionOfEntityBone() return vector3(0.8, 1.2, 0.3) end
 function GetGamePool(kind) return kind == 'CVehicle' and C.pool or {} end
@@ -211,10 +214,13 @@ C.entities[600] = { coords = vector3(0, 5, 0), state = { pwpClamp = true }, id =
 C.pool = { 600 }
 advance(1600)
 advance(1600)
-check('clamp fitted on a clamped car', (C.natives.AttachEntityToEntity or 0) >= 1)
+local at = C.attached or {}
+check('clamp fitted in three pieces', #at == 3, #at)
+check('clamp pieces sit on the tyre face', at[1] and math.abs(at[1].x - (0.8 - 0.13)) < 1e-6, at[1] and at[1].x)
+check('hook on top, arm on the ground', at[3] and math.abs(at[2].z - at[1].z - 0.36) < 1e-6 and math.abs(at[1].z - at[3].z - 0.36) < 1e-6)
 C.entities[600].state.pwpClamp = nil
 advance(1600)
-check('clamp removed when the state clears', (C.natives.DeleteObject or 0) >= 1)
+check('clamp removed when the state clears', (C.natives.DeleteObject or 0) >= 3, C.natives.DeleteObject)
 C.actions['pure-whip-police_policecar'].onSelect({ option = 'impound', entity = 600 })
 local sentCar = C.server[#C.server]
 check('police car action sends the car id', sentCar.name == 'pure-whip-police:policecar' and sentCar.args[1] == 9100 and sentCar.args[2] == 'impound')

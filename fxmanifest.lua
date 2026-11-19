@@ -52,6 +52,8 @@ server_scripts {
 }
 
 data_file 'DLC_ITYP_REQUEST' 'stream/pwp_wheel_clamp.ytyp'
+data_file 'DLC_ITYP_REQUEST' 'stream/pwp_wheel_clamp_top.ytyp'
+data_file 'DLC_ITYP_REQUEST' 'stream/pwp_wheel_clamp_arm.ytyp'
 
 ui_page 'html/station/index.html'
 
@@ -71,6 +73,8 @@ client_scripts {
 
 files {
     'stream/pwp_wheel_clamp.ytyp',
+    'stream/pwp_wheel_clamp_top.ytyp',
+    'stream/pwp_wheel_clamp_arm.ytyp',
     'html/station/index.html',
     'html/station/app.js',
     'html/mdt/module.js',

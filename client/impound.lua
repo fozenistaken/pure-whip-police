@@ -1,4 +1,8 @@
-local MODEL = joaat('pwp_wheel_clamp')
+local PIECES = {
+    { model = joaat('pwp_wheel_clamp'), radiiUp = 0 },
+    { model = joaat('pwp_wheel_clamp_top'), radiiUp = 1 },
+    { model = joaat('pwp_wheel_clamp_arm'), radiiUp = -1 },
+}
 local CLAMP = PWP.name('clamp')
 local props = {}
 
@@ -8,26 +12,37 @@ local function send(ctx, how)
     TriggerServerEvent(PWP.event('policecar'), id, how)
 end
 
+local function remove(objs)
+    for _, obj in ipairs(objs) do if DoesEntityExist(obj) then DeleteObject(obj) end end
+end
+
 local function fit(veh)
-    if not HasModelLoaded(MODEL) then
-        RequestModel(MODEL)
-        return
+    local ready = true
+    for _, p in ipairs(PIECES) do
+        if not HasModelLoaded(p.model) then RequestModel(p.model) ready = false end
     end
+    if not ready then return end
     local bone = GetEntityBoneIndexByName(veh, 'wheel_lf')
     if bone == -1 then return end
     local off = GetOffsetFromEntityGivenWorldCoords(veh, GetWorldPositionOfEntityBone(veh, bone))
-    local obj = CreateObjectNoOffset(MODEL, 0.0, 0.0, 0.0, false, false, false)
-    SetEntityCollision(obj, false, false)
-    AttachEntityToEntity(obj, veh, 0, off.x, off.y, off.z, 0.0, 0.0, 180.0, false, false, false, false, 2, true)
-    props[veh] = obj
+    local radius = GetVehicleWheelTireColliderSize(veh, 0)
+    local x = off.x - GetVehicleWheelTireColliderWidth(veh, 0) / 2
+    local objs = {}
+    for i, p in ipairs(PIECES) do
+        local obj = CreateObjectNoOffset(p.model, 0.0, 0.0, 0.0, false, false, false)
+        SetEntityCollision(obj, false, false)
+        AttachEntityToEntity(obj, veh, 0, x, off.y, off.z + p.radiiUp * radius, 0.0, 0.0, 180.0, false, false, false, false, 2, true)
+        objs[i] = obj
+    end
+    props[veh] = objs
 end
 
 local function sweep()
     local me = PlayerPedId()
     local here = GetEntityCoords(me)
-    for veh, obj in pairs(props) do
+    for veh, objs in pairs(props) do
         if not DoesEntityExist(veh) or not Entity(veh).state.pwpClamp then
-            if DoesEntityExist(obj) then DeleteObject(obj) end
+            remove(objs)
             props[veh] = nil
         end
     end
@@ -69,5 +84,5 @@ end)
 
 AddEventHandler('onResourceStop', function(res)
     if res ~= GetCurrentResourceName() then return end
-    for _, obj in pairs(props) do if DoesEntityExist(obj) then DeleteObject(obj) end end
+    for _, objs in pairs(props) do remove(objs) end
 end)
