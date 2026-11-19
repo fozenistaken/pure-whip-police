@@ -157,6 +157,9 @@ button.pwp-code.mdt-cp{background:none;padding:0;text-align:left}
 `;
 
   const STATUS = { available: 'Available', busy: 'Busy', enroute: 'En route', onscene: 'On scene' };
+  const OUTCOME = [['resolved', 'Resolved'], ['report', 'Report written'], ['arrest', 'Arrest'], ['unfounded', 'Unfounded'], ['no_contact', 'No contact'], ['gone', 'Gone on arrival']];
+  const OUTCOME_LABEL = Object.fromEntries(OUTCOME.concat([['expired', 'Expired']]));
+  const PLABEL = { 0: 'P0', 1: 'P1', 2: 'P2', 3: 'P3' };
   const CAT = { infraction: 'Infraction', misdemeanor: 'Misdemeanor', felony: 'Felony' };
   const NAV = [['dispatch', 'Dispatch', 'dispatch'], ['records', 'Records', 'records'], ['reports', 'Reports', 'report'], ['boards', 'Cases', 'board'], ['wanted', 'Wanted', 'wanted'], ['academy', 'Academy', 'badge'], ['command', 'Command', 'command']];
   const RTABS = [['overview', 'Overview'], ['history', 'History'], ['vehicles', 'Vehicles'], ['notes', 'Notes'], ['evidence', 'Evidence']];
@@ -271,7 +274,7 @@ button.pwp-code.mdt-cp{background:none;padding:0;text-align:left}
     }
   };
 
-  const shown = (s) => JSON.stringify([s.nav, s.penal && s.penal.length, s.calls, s.units, s.recent, s.reports, s.warrants, s.bolos, s.prisoners, s.feeds, s.boards, s.board, s.caseEv, s.lot, s.academy, s.exam, s.examResult, s.err]);
+  const shown = (s) => JSON.stringify([s.nav, s.penal && s.penal.length, s.calls, s.units, s.recent, s.reports, s.warrants, s.bolos, s.prisoners, s.feeds, s.boards, s.board, s.caseEv, s.lot, s.callLog, s.academy, s.exam, s.examResult, s.err]);
 
   const load = async (app) => {
     const s = app.state;
@@ -282,6 +285,7 @@ button.pwp-code.mdt-cp{background:none;padding:0;text-align:left}
     if (s.nav === 'academy' && !s.exam) jobs.push(ask(app, 'academy', {}, (r) => { s.academy = r; }, true));
     if (s.nav === 'boards') jobs.push(s.board ? ask(app, 'board', { id: s.board.id }, (r) => { s.board = r; }, true) : ask(app, 'boards', {}, (r) => { s.boards = r; }, true));
     if (s.nav === 'boards' && s.board && s.bview === 'locker') jobs.push(loadEv(app));
+    if (s.nav === 'dispatch' && s.dview === 'log') jobs.push(ask(app, 'callHistory', {}, (r) => { s.callLog = r || []; }, true));
     if (s.nav === 'dispatch' && s.dview === 'board' && perms(app).records) jobs.push(ask(app, 'feeds', {}, (r) => { s.feeds = r; }, true));
     else jobs.push(ask(app, 'calls', {}, (r) => { s.calls = r.calls; s.units = r.units; }, true));
     if (s.nav === 'records' && !s.person && !s.results) jobs.push(ask(app, 'lot', { lot: s.lotPick || null }, (r) => { s.lot = r; }, true));
@@ -306,15 +310,15 @@ button.pwp-code.mdt-cp{background:none;padding:0;text-align:left}
     const me = app.state.me || {};
     const mine = (c.responders || []).some((r) => r.callsign === me.callsign);
     const n = (c.responders || []).length;
-    const hi = c.priority === 'high';
+    const hi = c.level != null ? c.level <= 1 : c.priority === 'high';
     const p = perms(app);
     const who = n ? ': ' + c.responders.map((r) => B.esc(r.callsign)).join(', ') : '';
     const picked = app.state.pick === c.id;
     return `<article class="mdt-call ${hi ? 'hi pwp-bracket danger' : mine ? 'pwp-bracket' : ''} ${picked ? 'on' : ''}" data-call="${c.id}">
-      <button class="pick" data-act="pickCall" data-id="${c.id}" aria-pressed="${picked}"><span class="c">${B.esc(c.code)} · ${ago(c.createdAt)}</span><b>${B.esc(c.title)}</b>
+      <button class="pick" data-act="pickCall" data-id="${c.id}" aria-pressed="${picked}"><span class="c">${c.level != null ? PLABEL[c.level] + ' · ' : ''}${B.esc(c.code)} · ${ago(c.createdAt)}${c.count > 1 ? ' · ' + c.count + ' reports' : ''}</span><b>${B.esc(c.title)}</b>
       ${(c.info || []).map((l) => `<span>${B.esc(l)}</span>`).join('')}
       <span>${n} of ${c.maxResponders} units${who}</span></button>
-      <div class="acts">${p.dispatch ? (mine ? `<button class="pwp-btn sm pwp-press" data-act="detach" data-id="${c.id}">Leave</button>` : `<button class="pwp-btn sm inv pwp-press" data-act="attach" data-id="${c.id}">Respond</button>`) : ''}<button class="pwp-btn sm ghost icon pwp-press" data-act="waypoint" data-id="${c.id}" aria-label="Set a waypoint">${B.icons.pin}</button>${p.dispatch ? `<button class="pwp-btn sm ghost pwp-press" data-act="clearCall" data-id="${c.id}">Close</button>` : ''}</div>
+      <div class="acts">${p.dispatch ? (mine ? `<button class="pwp-btn sm pwp-press" data-act="detach" data-id="${c.id}">Leave</button>` : `<button class="pwp-btn sm inv pwp-press" data-act="attach" data-id="${c.id}">Respond</button>`) : ''}<button class="pwp-btn sm ghost icon pwp-press" data-act="waypoint" data-id="${c.id}" aria-label="Set a waypoint">${B.icons.pin}</button>${p.dispatch ? `<button class="pwp-btn sm ghost pwp-press" data-act="openSheet" data-k="closeCall" data-id="${c.id}">Close</button>` : ''}</div>
     </article>`;
   };
   const callList = (app) => {
@@ -350,7 +354,12 @@ button.pwp-code.mdt-cp{background:none;padding:0;text-align:left}
     dispatch(app, phone) {
       const s = app.state;
       const recent = s.recent || [];
-      const seg = hasMap() ? `<div class="pwp-seg" data-glide="dview">${[['map', 'Map', 'map'], ['board', 'Board', 'list']].map(([v, label, ic]) => `<button class="${s.dview === v ? 'on' : ''}" data-act="dview" data-v="${v}" aria-pressed="${s.dview === v}">${B.icons[ic]}${label}</button>`).join('')}</div>` : '';
+      const views = (hasMap() ? [['map', 'Map', 'map']] : []).concat([['board', 'Board', 'list'], ['log', 'History', 'report']]);
+      const seg = `<div class="pwp-seg" data-glide="dview">${views.map(([v, label, ic]) => `<button class="${s.dview === v ? 'on' : ''}" data-act="dview" data-v="${v}" aria-pressed="${s.dview === v}">${B.icons[ic] || ''}${label}</button>`).join('')}</div>`;
+      if (s.dview === 'log') {
+        const rows = (s.callLog || []).map((c) => `<div class="pwp-row mdt-wrap" data-key="cl${c.id}"><span class="pwp-code">${B.esc(c.code)}</span><span class="t">${B.esc(c.title)}${c.count > 1 ? ' · ' + c.count + ' reports' : ''}<span class="s">${B.esc([when(c.createdAt), c.units, c.note].filter(Boolean).join(' · '))}</span></span><span class="acts"><span class="pwp-flag ${c.outcome === 'arrest' ? 'danger' : c.outcome === 'expired' ? '' : 'ok'}">${B.esc(OUTCOME_LABEL[c.outcome] || c.outcome)}</span></span></div>`).join('');
+        return { body: head('Dispatch', null, seg) + scroll(`<section class="pwp-card"><p class="pwp-lbl">Closed calls</p>${rows || '<div class="pwp-empty">No closed calls yet</div>'}</section>`, 'calllog') };
+      }
       if (onMap(s)) {
         const c = phone && s.pick != null ? (s.calls || []).find((x) => x.id === s.pick) : null;
         return { body: head('Dispatch', null, seg) + `<div class="mdt-mapwrap"><div class="mdt-map-slot"></div>${c ? `<div class="mdt-mapcard pwp-fade">${callCard(app, c)}</div>` : ''}</div>` };
@@ -600,6 +609,13 @@ button.pwp-code.mdt-cp{background:none;padding:0;text-align:left}
         ${f.tow && f.via === 'street' ? `<div class="mdt-chips"><button class="mdt-chip ${s.f.impTow ? 'on' : ''}" data-act="impTow" aria-pressed="${!!s.f.impTow}">Send a tow truck</button></div>` : ''}
         <div class="mdt-cost"><div><small>Fee</small><b>${B.money(c.fee)}</b></div><div><small>${s.f.impHold === 'days' ? 'At pickup' : 'Per day'}</small><b>${s.f.impHold === 'days' ? B.money(c.pickup) : '+' + B.money(f.perDay)}</b></div><div><small>At most</small><b>${B.money(c.most)}</b></div></div>`;
       foot = `<button class="pwp-cta wide pwp-press" data-act="impoundFile" ${s.f.impReason ? '' : 'disabled'}>${s.f.impTow ? 'Call the tow for ' : 'Impound '}${B.esc(f.plate || '')}</button>`;
+    } else if (k === 'closeCall') {
+      const c = (s.calls || []).find((x) => x.id === s.sheet.id) || {};
+      title = 'Close ' + (c.code || 'the call');
+      body = `<p class="mdt-note" style="margin:0">${B.esc(c.title || '')}</p>
+        <div class="mdt-chips">${OUTCOME.map(([v, l]) => `<button class="mdt-chip ${s.f.outcome === v ? 'on' : ''}" data-act="pickOutcome" data-v="${v}" aria-pressed="${s.f.outcome === v}">${l}</button>`).join('')}</div>
+        <input id="f-callNote" class="pwp-in" data-bind="callNote" data-enter="closeCall" value="${val(app, 'callNote')}" placeholder="Note for the log (optional)">`;
+      foot = '<button class="pwp-cta wide pwp-press" data-act="closeCall">Close the call</button>';
     } else if (k === 'lift') {
       title = 'Lift the hold';
       const c = ((s.lot || {}).rows || []).find((x) => x.id === s.sheet.id) || {};
@@ -775,8 +791,16 @@ button.pwp-code.mdt-cp{background:none;padding:0;text-align:left}
     async status(app, d) { await shownFirst(app, 'status', { status: d.s }, d.s); },
     async attach(app, d) { await shownFirst(app, 'attach', { id: Number(d.id) }, 'enroute'); },
     async detach(app, d) { await shownFirst(app, 'detach', { id: Number(d.id) }, 'available'); },
-    async clearCall(app, d) { await ask(app, 'clearCall', { id: Number(d.id) }, () => { if (app.state.pick === Number(d.id)) app.state.pick = null; return load(app); }); },
-    dview(app, d) { app.state.dview = d.v; if (d.v !== 'map') app.state.pick = null; if (d.v === 'board') load(app); },
+    async closeCall(app) {
+      const s = app.state; const id = s.sheet.id;
+      s.calls = (s.calls || []).filter((c) => c.id !== id);
+      if (s.pick === id) s.pick = null;
+      const outcome = s.f.outcome || 'resolved'; const note = s.f.callNote || '';
+      s.sheet = null; s.f.callNote = '';
+      await ask(app, 'clearCall', { id, outcome, note }, () => load(app));
+    },
+    pickOutcome(app, d) { app.state.f.outcome = d.v; },
+    dview(app, d) { app.state.dview = d.v; if (d.v !== 'map') app.state.pick = null; if (d.v === 'board' || d.v === 'log') load(app); },
     async watch(app, d) { await ask(app, 'watch', d.k === 'cam' ? { kind: 'cam', id: Number(d.id) } : { kind: 'unit', target: Number(d.id) }); },
     async pickCall(app, d) {
       const s = app.state; const id = Number(d.id);
@@ -837,6 +861,7 @@ button.pwp-code.mdt-cp{background:none;padding:0;text-align:left}
       s.sheet = { kind: d.k };
       if (d.k === 'plate') s.f.plate = d.plate || '';
       if (d.k === 'bolo' || d.k === 'warrant' || d.k === 'plate') s.f.reason = '';
+      if (d.k === 'closeCall') { s.sheet.id = Number(d.id); s.f.outcome = 'resolved'; s.f.callNote = ''; }
       if (d.k === 'lift' || d.k === 'statement') { s.sheet.id = Number(d.id); s.f.liftNote = ''; s.f.stmt = null; }
       if (d.k === 'evfile') { s.upl = null; s.uplSel = []; ask(app, 'uploadable', {}, (r) => { s.upl = r || []; }, true).then(() => draw(app)); }
       if (d.k === 'penal' && !d.keep) { s.f.pCode = s.f.pTitle = s.f.pFine = s.f.pMonths = ''; s.f.pCat = 'misdemeanor'; }

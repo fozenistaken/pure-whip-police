@@ -1,5 +1,9 @@
 local STATUSES = { available = true, enroute = true, onscene = true, busy = true }
 local CALLSIGN = PWP.name('callsign')
+local HISTORY = 'pure_whip_police_calls'
+local PRIORITY = { critical = 0, high = 1, normal = 2, low = 3 }
+local BLIP = { [0] = { 526, 1, true }, [1] = { 526, 1, true }, [2] = { 161, 5, false }, [3] = { 161, 3, false } }
+local OUTCOMES = { resolved = true, report = true, arrest = true, unfounded = true, no_contact = true, gone = true, expired = true }
 
 local Dispatch = { alerts = {}, nextId = 0, units = {}, lastShot = {}, lastCall = {} }
 PWP.Dispatch = Dispatch
@@ -37,12 +41,31 @@ local function view(a)
     local responders = {}
     for src in pairs(a.responders) do responders[#responders + 1] = { source = src, callsign = Dispatch.callsign(src) } end
     return { id = a.id, code = a.code, title = a.title, info = a.info, coords = { x = a.coords.x, y = a.coords.y, z = a.coords.z },
-        priority = a.priority, jobs = a.jobs, createdAt = a.createdAt, expiresAt = a.expiresAt, responders = responders,
-        maxResponders = a.maxResponders }
+        priority = a.priority, level = PRIORITY[a.priority], count = a.count, jobs = a.jobs, createdAt = a.createdAt,
+        expiresAt = a.expiresAt, responders = responders, maxResponders = a.maxResponders }
 end
 
 function Dispatch.callsign(src)
     return Whip.core:GetPlayerFlag(src, CALLSIGN) or ('#' .. tostring(src))
+end
+
+local function showBlip(a, people)
+    local b = BLIP[PRIORITY[a.priority]]
+    Whip.core:ShowBlip({ people = people }, 'alert_' .. a.id, {
+        coords = a.coords, label = ('%s %s%s'):format(a.code, a.title, a.count > 1 and (' x' .. a.count) or ''),
+        sprite = b[1], color = b[2], flash = b[3], scale = a.priority == 'critical' and 1.2 or 1.1,
+    })
+end
+
+local function repeatOf(code, coords, now)
+    if Config.Dispatch.mergeMetres <= 0 then return nil end
+    for _, a in pairs(Dispatch.alerts) do
+        if a.code == code and a.priority ~= 'critical' and now - a.createdAt <= Config.Dispatch.mergeSeconds
+            and #(a.coords - coords) <= Config.Dispatch.mergeMetres then
+            return a
+        end
+    end
+    return nil
 end
 
 function Dispatch.send(alert)
@@ -52,14 +75,32 @@ function Dispatch.send(alert)
     local jobs = type(alert.jobs) == 'table' and alert.jobs or (alert.jobs and { alert.jobs }) or PWP.deptKeys()
     local c = alert.coords
     if not c or not tonumber(c.x) or not tonumber(c.y) then return false, 'an alert needs coords' end
-    Dispatch.nextId = Dispatch.nextId + 1
     local now = os.time()
+    local code = PWP.Text.clean(alert.code, 12) or '10-00'
+    local at = vector3(c.x + 0.0, c.y + 0.0, (tonumber(c.z) or 0.0) + 0.0)
+    local same = alert.priority ~= 'critical' and repeatOf(code, at, now)
+    if same then
+        same.count = same.count + 1
+        local line = type(alert.info) == 'table' and PWP.Text.clean(tostring(alert.info[1] or ''), 120)
+        if line and #same.info < 8 then
+            local dup = false
+            for _, l in ipairs(same.info) do if l == line then dup = true end end
+            if not dup then same.info[#same.info + 1] = line end
+        end
+        same.expiresAt = math.max(same.expiresAt, now + math.floor(tonumber(alert.duration) or Config.Dispatch.duration))
+        local people = recipients(same.jobs)
+        if #people > 0 then showBlip(same, people) end
+        local v = view(same)
+        for _, src in ipairs(people) do push(src, 'alert', v) end
+        return same.id
+    end
+    Dispatch.nextId = Dispatch.nextId + 1
     local a = {
         id = Dispatch.nextId, jobs = jobs,
-        code = PWP.Text.clean(alert.code, 12) or '10-00',
+        code = code,
         title = PWP.Text.clean(alert.title, 60) or 'Call',
-        info = {}, coords = vector3(c.x + 0.0, c.y + 0.0, (tonumber(c.z) or 0.0) + 0.0),
-        priority = alert.priority == 'high' and 'high' or 'normal',
+        info = {}, coords = at, count = 1,
+        priority = PRIORITY[alert.priority] and alert.priority or 'normal',
         maxResponders = math.max(1, math.min(20, math.floor(tonumber(alert.maxResponders) or Config.Dispatch.maxResponders))),
         createdAt = now,
         expiresAt = now + math.max(30, math.min(3600, math.floor(tonumber(alert.duration) or Config.Dispatch.duration))),
@@ -71,26 +112,27 @@ function Dispatch.send(alert)
     end
     Dispatch.alerts[a.id] = a
     local people = recipients(jobs)
-    if #people > 0 then
-        Whip.core:ShowBlip({ people = people }, 'alert_' .. a.id, {
-            coords = a.coords, label = ('%s %s'):format(a.code, a.title), sprite = a.priority == 'high' and 526 or 161,
-            color = a.priority == 'high' and 1 or 5, flash = a.priority == 'high', scale = 1.1,
-        })
-    end
+    if #people > 0 then showBlip(a, people) end
     local v = view(a)
     for _, src in ipairs(people) do
         phone(src, { app = 'pwpmdt', title = ('%s %s'):format(a.code, a.title), text = a.info[1] or '',
-            kind = a.priority == 'high' and 'command' or 'chat', args = { alert = a.id } })
+            kind = PRIORITY[a.priority] <= 1 and 'command' or 'chat', args = { alert = a.id } })
         push(src, 'alert', v)
     end
     TriggerEvent(PWP.event('alert'), v)
     return a.id
 end
 
-function Dispatch.clear(id)
+function Dispatch.clear(id, outcome, note, by)
     local a = Dispatch.alerts[tonumber(id)]
     if not a then return false, 'No such call' end
+    outcome = OUTCOMES[outcome] and outcome or 'resolved'
     Dispatch.alerts[a.id] = nil
+    local units = {}
+    for src in pairs(a.responders) do units[#units + 1] = Dispatch.callsign(src) end
+    MySQL.insert.await(('INSERT INTO `%s` (`code`, `title`, `info`, `x`, `y`, `priority`, `count`, `jobs`, `units`, `createdAt`, `closedAt`, `outcome`, `note`, `closedBy`) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'):format(HISTORY),
+        { a.code, a.title, json.encode(a.info), a.coords.x, a.coords.y, a.priority, a.count, table.concat(a.jobs, ','), table.concat(units, ', '),
+          a.createdAt, os.time(), outcome, PWP.Text.clean(note, 200), by and Whip.core:GetCharId(by) or nil })
     Whip.core:HideBlip('alert_' .. a.id)
     for src in pairs(a.responders) do Whip.core:HideBlip(('route_%d_%d'):format(a.id, src)) end
     for _, src in ipairs(recipients(a.jobs)) do push(src, 'alertCleared', { id = a.id }) end
@@ -152,7 +194,7 @@ local function panic(src)
     local jobs = PWP.deptKeys()
     for _, j in ipairs(Config.Dispatch.panicJobs or {}) do jobs[#jobs + 1] = j end
     local pos = GetEntityCoords(GetPlayerPed(src))
-    local id = Dispatch.send({ jobs = jobs, code = '10-99', title = 'Officer needs help', priority = 'high',
+    local id = Dispatch.send({ jobs = jobs, code = '10-99', title = 'Officer needs help', priority = 'critical',
         coords = pos, info = { ('%s %s'):format(PWP.dept(dept).short, Dispatch.callsign(src)) }, maxResponders = 20, duration = 600 })
     if id then
         CreateThread(function()
@@ -176,7 +218,7 @@ CreateThread(function()
         local now = os.time()
         for id, a in pairs(Dispatch.alerts) do
             if a.expiresAt <= now then
-                Dispatch.clear(id)
+                Dispatch.clear(id, 'expired')
             else
                 for src in pairs(a.responders) do
                     local u = Dispatch.units[src]
@@ -206,7 +248,40 @@ AddEventHandler(PWP.event('dutyChanged'), function(e)
 end)
 AddEventHandler('playerDropped', function() Dispatch.units[source] = nil end)
 
+function Dispatch.history(job, limit)
+    local rows = MySQL.query.await(('SELECT * FROM `%s` WHERE FIND_IN_SET(?, `jobs`) ORDER BY `id` DESC LIMIT ?'):format(HISTORY),
+        { job, math.max(1, math.min(200, limit or 50)) }) or {}
+    for _, r in ipairs(rows) do
+        local ok, info = pcall(json.decode, r.info or '[]')
+        r.info = ok and info or {}
+    end
+    return rows
+end
+
+local function prune()
+    local cutoff = os.time() - Config.Dispatch.keepDays * 86400
+    for _ = 1, 20 do
+        local n = MySQL.update.await(('DELETE FROM `%s` WHERE `closedAt` < ? LIMIT 500'):format(HISTORY), { cutoff }) or 0
+        if n < 500 then return end
+    end
+end
+
+CreateThread(function()
+    while true do
+        Wait(3600000)
+        prune()
+    end
+end)
+
 Whip.register(function()
+    local ok = Whip.core:EnsureTable(HISTORY, ([[CREATE TABLE IF NOT EXISTS `%s` (
+        `id` INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY, `code` VARCHAR(12) NOT NULL, `title` VARCHAR(60) NOT NULL,
+        `info` VARCHAR(1200) NULL, `x` FLOAT NOT NULL, `y` FLOAT NOT NULL, `priority` VARCHAR(8) NOT NULL, `count` SMALLINT UNSIGNED NOT NULL DEFAULT 1,
+        `jobs` VARCHAR(200) NOT NULL, `units` VARCHAR(300) NULL, `createdAt` INT UNSIGNED NOT NULL, `closedAt` INT UNSIGNED NOT NULL,
+        `outcome` VARCHAR(12) NOT NULL, `note` VARCHAR(200) NULL, `closedBy` INT UNSIGNED NULL, INDEX (`closedAt`)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4]]):format(HISTORY))
+    if not ok then print(('[%s] table %s could not be made'):format(PWP.RES, HISTORY)) end
+    prune()
     Whip.core:SecureEvent(PWP.event('panic'), { rateLimit = 10000, whileDead = true }, function(source)
         local id, why = panic(source)
         if not id then return false, why end

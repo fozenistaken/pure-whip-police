@@ -357,4 +357,7 @@ Config.Dispatch = {
     shotsCooldown = 45,
     panicJobs = {},
     citizenCooldown = 60,   -- seconds between a citizen's /911 calls, 10-600
+    mergeMetres = 120.0,    -- a repeat report of the same code this close joins the open call (x2, x3...), 0-500; 0 never merges
+    mergeSeconds = 300,     -- ...if that call is younger than this, 30-3600
+    keepDays = 30,          -- closed calls kept in the call history, 1-365
 }

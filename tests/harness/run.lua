@@ -276,6 +276,26 @@ scenario('impound holds, override, garage path, lot, BOLO, haul', function()
     check('second haul inside the cooldown pays nothing', junk2.out == false and #W.paid == paidBefore + 1)
 end)
 
+scenario('calls: priority, repeat reports, outcome and history', function()
+    local a = PWP.Dispatch.send({ code = '10-31', title = 'Burglary', coords = vector3(400, 400, 30), info = { 'Window smashed' }, priority = 'high' })
+    local b = PWP.Dispatch.send({ code = '10-31', title = 'Burglary', coords = vector3(420, 410, 30), info = { 'Alarm going off' } })
+    check('a repeat report joins the open call', a == b and PWP.Dispatch.alerts[a].count == 2, tostring(a) .. ' ' .. tostring(b))
+    check('the repeat adds its line', #PWP.Dispatch.alerts[a].info == 2)
+    local far = PWP.Dispatch.send({ code = '10-31', title = 'Burglary', coords = vector3(2000, 2000, 30) })
+    check('a far report is its own call', far ~= a)
+    local calls = W.cb('pure-whip-police:mdt:calls', 1, {})
+    local seen
+    for _, c in ipairs(calls and calls.calls or {}) do if c.id == a then seen = c end end
+    check('the MDT sees level and count', seen and seen.level == 1 and seen.count == 2, seen and json.encode(seen))
+    check('closing needs nothing more than an outcome', W.cb('pure-whip-police:mdt:clearCall', 1, { id = a, outcome = 'arrest', note = 'Two in custody' }) == true)
+    PWP.Dispatch.clear(far)
+    local log = W.cb('pure-whip-police:mdt:callHistory', 1, {})
+    local hit
+    for _, r in ipairs(log or {}) do if r.title == 'Burglary' and r.outcome == 'arrest' then hit = r end end
+    check('the closed call is in the history with its outcome', hit and hit.count == 2 and hit.note == 'Two in custody', log and json.encode(log[1]))
+    check('a bad outcome becomes resolved', #(rows("SELECT id FROM pure_whip_police_calls WHERE outcome = 'resolved'")) >= 1)
+end)
+
 scenario('tow truck job', function()
     local car = W.car({ plate = 'TOW 1', owner = 2, coords = vector3(12, 10, 30) })
     W.players[1].coords = vector3(10, 10, 30)

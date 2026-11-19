@@ -245,7 +245,8 @@ H.removePenal = { perm = 'command', fn = function(_, _, a) return R.removePenal(
 function H.calls(_, dept) return { calls = D.list(dept), units = D.units_() } end
 H.attach = { perm = 'dispatch', fn = function(src, _, a) return D.attach(src, num(a.id)) end }
 H.detach = { perm = 'dispatch', fn = function(src, _, a) return D.detach(src, num(a.id)) end }
-H.clearCall = { perm = 'dispatch', fn = function(_, _, a) return D.clear(num(a.id)) end }
+H.clearCall = { perm = 'dispatch', fn = function(src, _, a) return D.clear(num(a.id), a.outcome, a.note, src) end }
+function H.callHistory(_, dept) return D.history(dept, 60) end
 function H.status(src, _, a) return D.setStatus(src, a.status) end
 
 local KINDS = { boat = 'boat', submarine = 'boat', heli = 'air', plane = 'air' }
