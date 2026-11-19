@@ -1,6 +1,8 @@
 local Ev = PWP.Evidence
 local Gear, Station = PWP.Gear, PWP.Station
 local C = Config.Evidence
+if PWP.forensics() then C.enabled = false end
+GlobalState.pwpForensics = PWP.forensics() or false
 
 local ITEM = {
     casing = PWP.name('casing'), bag = PWP.name('evidence'), bags = PWP.name('evidence_bags'),
@@ -228,7 +230,7 @@ end
 
 
 AddEventHandler('whip_core:player:died', function(e)
-    if GetInvokingResource() ~= 'whip_core' or type(e) ~= 'table' or not e.source or not e.charId then return end
+    if not C.enabled or GetInvokingResource() ~= 'whip_core' or type(e) ~= 'table' or not e.source or not e.charId then return end
     local ped = GetPlayerPed(e.source)
     if not ped or ped == 0 then return end
     local c = GetEntityCoords(ped)
@@ -374,7 +376,8 @@ Station.kind('evidence', {
 PWP.Points.kind('evidence', {
     icon = 'box',
     require = { onDuty = true },
-    options = { { id = 'locker', label = 'Evidence locker' }, { id = 'lab', label = 'Analyse evidence' } },
+    options = C.enabled and { { id = 'locker', label = 'Evidence locker' }, { id = 'lab', label = 'Analyse evidence' } }
+        or { { id = 'locker', label = 'Evidence locker' } },
     onUse = function(source, dept, row, use)
         if use and use.option == 'lab' then
             CreateThread(function() analyse(source, dept) end)

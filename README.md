@@ -42,6 +42,15 @@ Under `Config.Providers` in `config.lua` and on the settings page:
 - **MDT:** `'none'` hides the built-in MDT. Another MDT reads and writes through the exports below.
 - **Dispatch:** a resource name. That resource answers `SendAlert(alert)` and `ClearAlert(id)`.
 - **Radio:** a resource name. That resource answers `JoinChannel(src, channel)` and `LeaveChannel(src, channel)`.
+- **Evidence:** `'auto'` (the default) hands forensics to [whip_evidence](https://github.com/LeSiiN/whip_evidence) by
+  LeSiiN (GPL-3.0) when it is on the server: its scan, crime scene photos, lab, ballistics, GSR, bodies and case
+  lockers. This resource's own casings, blood and lab then stay off. Investigations in the MDT are its cases: the case
+  number is the investigation number. Officers file analysed bags, photos and test-fired guns from the MDT ("Evidence"
+  on an investigation) or at the lab device, see lab results, prints matched to people on file, post-mortem reports,
+  photos and the chain of custody, and open the locker at an evidence locker. Closing an investigation closes its
+  locker. In whip_evidence's config: `PoliceJobs = { 'lspd', 'bcso' }` and `ApiResources = { 'pure-whip-police' }`;
+  the `GetTraits` export (prints on file) is in the local fork under `resources/[forks]`. `'builtin'` keeps this
+  resource's own evidence.
 
 If a named resource isn't started, the built-in part is used and the console says so once.
 

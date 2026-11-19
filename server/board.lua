@@ -40,6 +40,7 @@ function Board.create(src, dept, title)
     local id = MySQL.insert.await(('INSERT INTO `%s` (`title`, `status`, `dept`, `leadCharId`, `createdAt`, `updatedAt`) VALUES (?, \'open\', ?, ?, ?, ?)'):format(T.cases),
         { title, dept, Whip.core:GetCharId(src), now(), now() })
     if not id then return false, 'Could not save it' end
+    PWP.Forensics.remember(id)
     Whip.core:LogActivity(src, 'investigation_opened', { detail = title })
     return { id = id }
 end
@@ -101,11 +102,16 @@ end
 
 function Board.setStatus(src, a)
     local id = tonumber(a.id)
+    if not id then return false, 'No such investigation' end
     local status = a.status == 'closed' and 'closed' or 'open'
     MySQL.update.await(('UPDATE `%s` SET `status` = ?, `updatedAt` = ? WHERE `id` = ?'):format(T.cases), { status, now(), id })
     tell(id, src)
+    local ok, why = PWP.Forensics.setClosed(src, id, status == 'closed')
+    if not ok then return { warn = 'Evidence locker: ' .. tostring(why or 'not changed') } end
     return true
 end
+
+Board.tell = tell
 
 function Board.leave(src) Board.viewers[src] = nil end
 

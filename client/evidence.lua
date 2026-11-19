@@ -4,6 +4,8 @@ local HIT_GAP_MS = 300
 local drawn = false
 local hurtAt = 0
 
+local function on() return C.enabled and not GlobalState.pwpForensics end
+
 local function watchHits()
     local last, sentAt = nil, 0
     while drawn do
@@ -18,7 +20,7 @@ local function watchHits()
 end
 
 AddEventHandler('whip_gunny:weapon:drawn', function()
-    if drawn or not C.enabled then return end
+    if drawn or not on() then return end
     drawn = true
     watchHits()
 end)
@@ -26,7 +28,7 @@ end)
 AddEventHandler('whip_gunny:weapon:holstered', function() drawn = false end)
 
 AddEventHandler('gameEventTriggered', function(name, args)
-    if name ~= 'CEventNetworkEntityDamage' or not C.enabled then return end
+    if name ~= 'CEventNetworkEntityDamage' or not on() then return end
     local ped = PlayerPedId()
     if args[1] ~= ped or IsEntityDead(ped) then return end
     local now = GetGameTimer()
@@ -37,7 +39,7 @@ AddEventHandler('gameEventTriggered', function(name, args)
 end)
 
 Whip.register(function()
-    if not C.enabled then return end
+    if not on() then return end
     Whip.core:AddAction({
         id = PWP.name('cardoor'),
         at = { vehiclePart = 'door_dside_f' },

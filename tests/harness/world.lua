@@ -127,6 +127,7 @@ function Wait(ms)
     coroutine.yield()
 end
 Citizen = { Wait = Wait, CreateThread = function(fn) spawn(fn) end }
+GlobalState = {}
 function CreateThread(fn) spawn(fn) end
 function SetTimeout(ms, fn) spawn(function() Wait(ms) fn() end) end
 

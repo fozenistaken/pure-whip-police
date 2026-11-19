@@ -4,6 +4,8 @@ local PERMS = { 'records', 'warrants', 'fine', 'fine_custom', 'jail', 'command',
 
 local sourceOf = PWP.sourceOf
 
+local function samples() return PWP.forensics() and PWP.Forensics or PWP.EvidenceServer end
+
 local function str(v, max) return PWP.Text.clean(type(v) == 'string' and v or tostring(v or ''), max) end
 local function num(v) return tonumber(v) and math.floor(tonumber(v)) or nil end
 
@@ -34,7 +36,8 @@ function H.me(src, dept)
     local p = Whip.core:GetPlayers({ light = true })[src] or {}
     return { dept = dept, deptLabel = PWP.dept(dept).label, short = PWP.dept(dept).short, rank = role.name,
         level = role.level, name = p.fullName, callsign = D.callsign(src), status = u.status, perms = perms,
-        courts = PWP.courts() ~= nil, academy = (role.level or 0) < Config.Academy.untilLevel }
+        courts = PWP.courts() ~= nil, academy = (role.level or 0) < Config.Academy.untilLevel,
+        forensics = PWP.forensics() ~= nil }
 end
 
 function H.dashboard(src, dept)
@@ -70,14 +73,14 @@ function H.person(_, _, a)
     decorate(row.notes or {}, 'authorCharId', 'author')
     row.vehicles = MySQL.query.await('SELECT `vehicleId`, `model`, `plate`, `state` FROM `vehicles` WHERE `ownerCharId` = ? LIMIT 20', { charId }) or {}
     row.online = sourceOf(charId) ~= nil
-    row.samples = PWP.EvidenceServer.samplesOf(charId)
+    row.samples = samples().samplesOf(charId)
     return row
 end
 
 H.takeSamples = { perm = 'records', fn = function(src, _, a)
     local target = sourceOf(num(a.charId))
     if not target then return false, 'They are not in town' end
-    local got, why = PWP.EvidenceServer.takeSamples(src, target)
+    local got, why = samples().takeSamples(src, target)
     if not got then return false, why end
     Whip.core:LogActivity(src, 'samples_taken', { detail = ('charId %d'):format(got.charId) })
     return got
@@ -86,6 +89,10 @@ end }
 function H.evidence(_, _, a)
     local q = str(a.q, 32)
     if not q then return { rows = {} } end
+    if PWP.forensics() then
+        local owner = PWP.Forensics.ownerOf(q)
+        return { cases = PWP.Forensics.search(q), owner = owner, ownerName = owner and names({ owner })[owner] or nil, rows = {} }
+    end
     q = q:upper()
     local rows = PWP.EvidenceServer.search(q)
     local owner = PWP.EvidenceServer.ownerOf(q)
@@ -299,6 +306,11 @@ H.boardRemove = { perm = 'records', fn = function(src, _, a) return PWP.Board.re
 H.boardLink = { perm = 'records', fn = function(src, _, a) return PWP.Board.link(src, a) end }
 H.boardStatus = { perm = 'records', fn = function(src, _, a) return PWP.Board.setStatus(src, a) end }
 function H.boardLeave(src) PWP.Board.leave(src) return true end
+H.caseEvidence = { perm = 'records', fn = function(_, _, a) return PWP.Forensics.case(num(a.id)) end }
+H.uploadable = { perm = 'records', fn = function(src) return PWP.Forensics.uploadable(src) end }
+H.fileEvidence = { perm = 'records', fn = function(src, _, a) return PWP.Forensics.upload(src, num(a.id), a.refs) end }
+H.caseLocker = { perm = 'records', fn = function(src, _, a) return PWP.Forensics.openLocker(src, num(a.id)) end }
+H.casePhoto = { perm = 'records', fn = function(_, _, a) return PWP.Forensics.photo(num(a.id), a.photoId, a.part) end }
 
 function H.academy(src, dept)
     local out = { last = PWP.Exams.last(Whip.core:GetCharId(src), dept), questions = Config.Academy.questions, pass = Config.Academy.pass }

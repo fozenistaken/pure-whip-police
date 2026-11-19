@@ -27,6 +27,14 @@ function PWP.courts()
     return res
 end
 
+function PWP.forensics()
+    local p = Config.Providers.evidence
+    if type(p) ~= 'string' or p == 'builtin' then return nil end
+    local res = p == 'auto' and 'whip_evidence' or p
+    if GetResourceState(res) == 'missing' then return nil end
+    return res
+end
+
 function PWP.dept(key)
     return Config.Departments[key]
 end

@@ -403,6 +403,89 @@ scenario('body cam, towing a street car, a clean plate', function()
     check('but it is still seen', PWP.Traffic.lastSeen('CLEAN 1') ~= nil)
 end)
 
+scenario('whip_evidence bridge', function()
+    local image = 'data:image/jpeg;base64,' .. ('A'):rep(600 * 1024)
+    local fake = { check = nil, closed = {}, items = {}, taken = {}, carried = {
+        { ref = 'bag:AAA111', kind = 'casing', type = 'Casing', analysed = true, results = { weapon_serial = 'SER123', fingerprint = 'FPCODE000001' } },
+        { ref = 'photo:P1', kind = 'photo', type = 'Photo', photo_id = 'P1', analysed = true },
+        { ref = 'bag:BBB222', kind = 'blood', type = 'Blood', analysed = false },
+    } }
+    W.exports.whip_evidence = {
+        SetCaseCheck = function(fn) fake.check = fn return true end,
+        GetTraits = function(charId) return { fingerprint = 'FPCODE00000' .. charId, blood = 'O+' } end,
+        GetUploadable = function() return fake.carried end,
+        Upload = function(_, refs, caseId)
+            local out = {}
+            for _, ref in ipairs(refs) do
+                for _, e in ipairs(fake.carried) do
+                    if e.ref == ref then
+                        local copy = { ref = e.ref, kind = e.kind, type = e.type, photo_id = e.photo_id, results = e.results, case = caseId }
+                        fake.items[#fake.items + 1] = copy
+                        out[#out + 1] = { ref = ref, ok = true, entry = copy }
+                    end
+                end
+            end
+            return out
+        end,
+        GetCase = function(caseId) return #fake.items > 0 and { id = caseId, closed = fake.closed[caseId], items = fake.items, taken = fake.taken } or nil end,
+        OpenCaseLocker = function() return false end,
+        CloseCase = function(caseId) fake.closed[caseId] = true return true end,
+        ReopenCase = function(caseId) fake.closed[caseId] = nil return true end,
+        GetPhotoImage = function(id) return id == 'P1' and image or nil end,
+    }
+    W.started.whip_evidence = true
+    PWP.Forensics.init()
+    local made = W.cb('pure-whip-police:mdt:boardNew', 1, { title = 'Forensics case' })
+    local id = made.id
+    check('case check hooked', type(fake.check) == 'function')
+    check('case check knows the investigation', fake.check(tostring(id)) == true)
+    check('case check refuses others', fake.check('999') == false and fake.check('0' .. id) == false)
+    check('MDT says forensics is on', W.cb('pure-whip-police:mdt:me', 1).forensics == true)
+    local c = W.cb('pure-whip-police:mdt:caseEvidence', 1, { id = id })
+    check('empty locker', c and c.on == true and #c.items == 0, c and json.encode(c))
+    local r, why = W.cb('pure-whip-police:mdt:fileEvidence', 1, { id = id, refs = { 'bag:AAA111', 'photo:P1' } })
+    check('two items filed', r and r.done == 2, why or (r and json.encode(r)))
+    local nope = W.cb('pure-whip-police:mdt:fileEvidence', 1, { id = id, refs = { 'bag:ZZZ999' } })
+    check('not carried is refused', nope == false)
+    nope = W.cb('pure-whip-police:mdt:fileEvidence', 1, { id = id, refs = { "bag:'; DROP" } })
+    check('bad ref is refused', nope == false)
+    W.players[1].coords, W.players[2].coords = vector3(10, 10, 30), vector3(11, 10, 30)
+    PWP.Contact.cuff(1, 2, 'hard')
+    local got, gwhy = W.cb('pure-whip-police:mdt:takeSamples', 1, { charId = 2 })
+    PWP.Contact.uncuff(1, 2)
+    check('fingerprints taken through whip_evidence', got and got.print == 'FPCODE000002', got and json.encode(got) or gwhy)
+    fake.carried[1].results.fingerprint = 'FPCODE000002'
+    fake.items[1].results.fingerprint = 'FPCODE000002'
+    c = W.cb('pure-whip-police:mdt:caseEvidence', 1, { id = id })
+    local bag
+    for _, e in ipairs(c.items) do if e.ref == 'bag:AAA111' then bag = e end end
+    check('filed bag listed with its uploader', bag and bag.uploader == 'Ava Reyes', bag and json.encode(bag))
+    check('print on the bag names the person on file', bag and bag.printOwner == 2)
+    local p1 = W.cb('pure-whip-police:mdt:casePhoto', 1, { id = id, photoId = 'P1', part = 1 })
+    local p2 = p1 and p1.parts and W.cb('pure-whip-police:mdt:casePhoto', 1, { id = id, photoId = 'P1', part = 2 })
+    local p3 = p1 and p1.parts and p1.parts >= 3 and W.cb('pure-whip-police:mdt:casePhoto', 1, { id = id, photoId = 'P1', part = 3 })
+    check('photo comes in parts', p1 and p1.parts == 3, p1 and p1.parts)
+    check('parts join to the picture', p1 and p2 and p3 and (p1.data .. p2.data .. p3.data) == image)
+    check('a photo outside the case is refused', W.cb('pure-whip-police:mdt:casePhoto', 1, { id = id, photoId = 'P9', part = 1 }) == false)
+    local s = W.cb('pure-whip-police:mdt:evidence', 1, { q = 'FPCODE000002' })
+    check('print search names the person', s and s.owner == 2, s and json.encode(s))
+    s = W.cb('pure-whip-police:mdt:evidence', 1, { q = 'SER123' })
+    check('serial search finds the filed bag', s and s.cases and #s.cases == 1 and s.cases[1].caseId == id, s and json.encode(s))
+    table.remove(fake.items, 1)
+    W.fire('whip_evidence:caseChanged', 'whip_evidence', nil, tostring(id), 'taken')
+    W.advance(600)
+    c = W.cb('pure-whip-police:mdt:caseEvidence', 1, { id = id })
+    for _, e in ipairs(c.items) do if e.ref == 'bag:AAA111' then bag = e end end
+    check('a bag gone from the locker stays, marked gone', bag and bag.gone == true)
+    W.cb('pure-whip-police:mdt:boardStatus', 1, { id = id, status = 'closed' })
+    check('closing the investigation closes the locker', fake.closed[tostring(id)] == true)
+    nope = W.cb('pure-whip-police:mdt:fileEvidence', 1, { id = id, refs = { 'bag:AAA111' } })
+    check('nothing is filed into a closed investigation', nope == false)
+    W.cb('pure-whip-police:mdt:boardStatus', 1, { id = id, status = 'open' })
+    check('reopening reopens the locker', fake.closed[tostring(id)] == nil)
+    W.started.whip_evidence = nil
+end)
+
 scenario('end state', function()
     local seen = {}
     for _, m in ipairs(W.missing) do seen[m] = true end

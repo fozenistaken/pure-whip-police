@@ -34,6 +34,7 @@ end
 function CreateThread(fn) spawn(fn) end
 function SetTimeout(ms, fn) spawn(function() Wait(ms) fn() end) end
 Citizen = { Wait = Wait, CreateThread = CreateThread }
+GlobalState = {}
 local function advance(ms)
     local target = C.clockMs + ms
     while true do

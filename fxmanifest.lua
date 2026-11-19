@@ -46,6 +46,7 @@ server_scripts {
     'server/impound.lua',
     'server/k9.lua',
     'server/board.lua',
+    'server/forensics.lua',
     'server/academy.lua',
     'server/mdt.lua',
     'server/main.lua',
