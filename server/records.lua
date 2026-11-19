@@ -23,8 +23,8 @@ local function charOf(by)
 end
 Records.charOf = charOf
 
-local function ensure(name, sql)
-    local ok, why = Whip.core:EnsureTable(T[name], q(sql))
+local function ensure(name, sql, migrations)
+    local ok, why = Whip.core:EnsureTable(T[name], q(sql), migrations)
     if not ok then print(('[%s] table %s: %s'):format(PWP.RES, T[name], tostring(why))) end
     return ok
 end
@@ -35,13 +35,29 @@ function Records.loadPenal()
     for _, r in ipairs(rows) do Records.penal[r.code] = r end
 end
 
+local function ticketable(c)
+    if c.parking then return 0 end
+    return (c.months == 0 and c.category ~= 'felony') and 1 or 0
+end
+
 local function seedPenal()
     local n = MySQL.scalar.await(q('SELECT COUNT(*) FROM {penal}')) or 0
     if n > 0 then return end
     for i, c in ipairs(PenalSeed or {}) do
-        MySQL.insert.await(q('INSERT IGNORE INTO {penal} (`code`, `title`, `category`, `fine`, `months`, `sort`) VALUES (?, ?, ?, ?, ?, ?)'),
-            { c.code, c.title, c.category, c.fine, c.months, i })
+        MySQL.insert.await(q('INSERT IGNORE INTO {penal} (`code`, `title`, `category`, `fine`, `months`, `sort`, `citation`, `parking`) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'),
+            { c.code, c.title, c.category, c.fine, c.months, i, ticketable(c), c.parking and 1 or 0 })
     end
+end
+
+local function parkingSeed()
+    local list = {}
+    for i, c in ipairs(PenalSeed or {}) do
+        if c.parking then
+            list[#list + 1] = { sql = q('INSERT IGNORE INTO {penal} (`code`, `title`, `category`, `fine`, `months`, `sort`, `citation`, `parking`) VALUES (?, ?, ?, ?, ?, ?, 0, 1)'),
+                values = { c.code, c.title, c.category, c.fine, c.months, i } }
+        end
+    end
+    return list
 end
 
 function Records.setPenal(entry)
@@ -55,9 +71,11 @@ function Records.setPenal(entry)
     local fine = math.floor(tonumber(entry.fine) or -1)
     local months = math.floor(tonumber(entry.months) or -1)
     if fine < 0 or fine > 10000000 or months < 0 or months > 1200 then return false, 'Fine or months out of range' end
-    MySQL.insert.await(q([[INSERT INTO {penal} (`code`, `title`, `category`, `fine`, `months`, `sort`) VALUES (?, ?, ?, ?, ?, 999)
-        ON DUPLICATE KEY UPDATE `title` = VALUES(`title`), `category` = VALUES(`category`), `fine` = VALUES(`fine`), `months` = VALUES(`months`)]]),
-        { code, title, category, fine, months })
+    local citation = entry.citation == nil and ticketable({ months = months, category = category }) or (entry.citation and 1 or 0)
+    MySQL.insert.await(q([[INSERT INTO {penal} (`code`, `title`, `category`, `fine`, `months`, `sort`, `citation`, `parking`) VALUES (?, ?, ?, ?, ?, 999, ?, ?)
+        ON DUPLICATE KEY UPDATE `title` = VALUES(`title`), `category` = VALUES(`category`), `fine` = VALUES(`fine`), `months` = VALUES(`months`),
+        `citation` = VALUES(`citation`), `parking` = VALUES(`parking`)]]),
+        { code, title, category, fine, months, citation, entry.parking and 1 or 0 })
     Records.loadPenal()
     return true
 end
@@ -209,8 +227,8 @@ function Records.addBolo(opts)
     local reason = Text.clean(opts.reason, 300)
     if not reason then return false, 'A BOLO needs a reason' end
     local hours = math.max(1, math.min(720, math.floor(tonumber(opts.hours) or 48)))
-    local id = MySQL.insert.await(q([[INSERT INTO {bolos} (`charId`, `plate`, `reason`, `dept`, `issuedBy`, `expiresAt`)
-        VALUES (?, ?, ?, ?, ?, DATE_ADD(NOW(), INTERVAL ? HOUR))]]), { charId, plate, reason, opts.dept, charOf(opts.by), hours })
+    local id = MySQL.insert.await(q([[INSERT INTO {bolos} (`charId`, `plate`, `reason`, `stolen`, `dept`, `issuedBy`, `expiresAt`)
+        VALUES (?, ?, ?, ?, ?, ?, DATE_ADD(NOW(), INTERVAL ? HOUR))]]), { charId, plate, reason, plate and opts.stolen and 1 or 0, opts.dept, charOf(opts.by), hours })
     if not id then return false, 'Could not save the BOLO' end
     TriggerEvent(PWP.event('bolo'), { id = id, charId = charId, plate = plate, active = true })
     return id
@@ -276,7 +294,16 @@ Whip.register(function()
         `code` VARCHAR(10) NOT NULL, `title` VARCHAR(80) NOT NULL,
         `category` ENUM('infraction','misdemeanor','felony') NOT NULL DEFAULT 'misdemeanor',
         `fine` INT UNSIGNED NOT NULL DEFAULT 0, `months` SMALLINT UNSIGNED NOT NULL DEFAULT 0,
-        `sort` SMALLINT NOT NULL DEFAULT 999, PRIMARY KEY (`code`)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4]]):format(T.penal))
+        `sort` SMALLINT NOT NULL DEFAULT 999, `citation` TINYINT(1) NOT NULL DEFAULT 0, `parking` TINYINT(1) NOT NULL DEFAULT 0,
+        PRIMARY KEY (`code`)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4]]):format(T.penal), {
+        { id = 'penal_ticket_flags', statements = {
+            { sql = q('ALTER TABLE {penal} ADD COLUMN `citation` TINYINT(1) NOT NULL DEFAULT 0'), unless = { column = { T.penal, 'citation' } } },
+            { sql = q('ALTER TABLE {penal} ADD COLUMN `parking` TINYINT(1) NOT NULL DEFAULT 0'), unless = { column = { T.penal, 'parking' } } },
+            q("UPDATE {penal} SET `citation` = 1 WHERE `months` = 0 AND `category` <> 'felony'"),
+        }, run = function()
+            for _, st in ipairs(parkingSeed()) do MySQL.insert.await(st.sql, st.values) end
+        end },
+    })
     ensure('reports', ([[CREATE TABLE IF NOT EXISTS `%s` (
         `id` INT UNSIGNED NOT NULL AUTO_INCREMENT, `rev` INT UNSIGNED NOT NULL DEFAULT 1,
         `dept` VARCHAR(50) NOT NULL, `authorCharId` INT NULL, `editedBy` INT NULL,
@@ -301,10 +328,14 @@ Whip.register(function()
         PRIMARY KEY (`id`), KEY `charId` (`charId`, `status`)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4]]):format(T.warrants))
     ensure('bolos', ([[CREATE TABLE IF NOT EXISTS `%s` (
         `id` INT UNSIGNED NOT NULL AUTO_INCREMENT, `charId` INT NULL, `plate` VARCHAR(8) NULL,
-        `reason` VARCHAR(300) NOT NULL, `dept` VARCHAR(50) NULL, `issuedBy` INT NULL, `closedBy` INT NULL,
+        `reason` VARCHAR(300) NOT NULL, `stolen` TINYINT(1) NOT NULL DEFAULT 0, `dept` VARCHAR(50) NULL, `issuedBy` INT NULL, `closedBy` INT NULL,
         `status` ENUM('active','closed') NOT NULL DEFAULT 'active',
         `expiresAt` DATETIME NOT NULL, `createdAt` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        PRIMARY KEY (`id`), KEY `plate` (`plate`, `status`)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4]]):format(T.bolos))
+        PRIMARY KEY (`id`), KEY `plate` (`plate`, `status`)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4]]):format(T.bolos), {
+        { id = 'bolo_stolen', statements = {
+            { sql = q('ALTER TABLE {bolos} ADD COLUMN `stolen` TINYINT(1) NOT NULL DEFAULT 0'), unless = { column = { T.bolos, 'stolen' } } },
+        } },
+    })
     ensure('notes', ([[CREATE TABLE IF NOT EXISTS `%s` (
         `id` INT UNSIGNED NOT NULL AUTO_INCREMENT, `charId` INT NOT NULL, `authorCharId` INT NULL,
         `text` VARCHAR(1000) NOT NULL, `createdAt` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,

@@ -110,7 +110,11 @@ function H.vehicles(_, _, a)
     local rows = MySQL.query.await('SELECT `vehicleId`, `ownerCharId`, `model`, `plate`, `state` FROM `vehicles` WHERE `plate` LIKE ? LIMIT 25',
         { '%' .. q:upper() .. '%' }) or {}
     decorate(rows, 'ownerCharId', 'owner')
-    for _, r in ipairs(rows) do r.bolo, r.seen = R.boloForPlate(r.plate), PWP.Traffic.lastSeen(r.plate) end
+    for _, r in ipairs(rows) do
+        r.bolo, r.seen = R.boloForPlate(r.plate), PWP.Traffic.lastSeen(r.plate)
+        local held = PWP.Impound.of(r.vehicleId)
+        r.impound = held and { id = held.id, lot = held.lotLabel, reason = held.reason, held = held.held } or nil
+    end
     return rows
 end
 
@@ -159,7 +163,7 @@ end }
 function H.bolos() return decorate(R.activeBolos(), 'charId', 'name') end
 
 H.addBolo = { perm = 'records', fn = function(src, dept, a)
-    local id, why = R.addBolo({ charId = num(a.charId), plate = a.plate, reason = a.reason, hours = a.hours, dept = dept, by = src })
+    local id, why = R.addBolo({ charId = num(a.charId), plate = a.plate, reason = a.reason, hours = a.hours, stolen = a.stolen == true, dept = dept, by = src })
     if not id then return false, why end
     return { id = id }
 end }
@@ -306,6 +310,22 @@ H.boardRemove = { perm = 'records', fn = function(src, _, a) return PWP.Board.re
 H.boardLink = { perm = 'records', fn = function(src, _, a) return PWP.Board.link(src, a) end }
 H.boardStatus = { perm = 'records', fn = function(src, _, a) return PWP.Board.setStatus(src, a) end }
 function H.boardLeave(src) PWP.Board.leave(src) return true end
+H.impoundPreview = { perm = 'fine', fn = function(_, _, a) return PWP.Impound.preview(num(a.vehicleId)) end }
+H.impoundFile = { perm = 'fine', fn = function(src, dept, a)
+    local spec = type(a.spec) == 'table' and a.spec or {}
+    spec.via = spec.via == 'garage' and 'garage' or 'street'
+    return PWP.Impound.file(src, dept, spec)
+end }
+H.lot = { perm = 'records', fn = function(_, _, a) return { rows = PWP.Impound.lot(type(a.lot) == 'string' and a.lot or nil), lots = Config.Impound.lots } end }
+H.impoundHistory = { perm = 'records', fn = function(_, _, a) return PWP.Impound.history(num(a.vehicleId)) end }
+H.liftHold = { perm = 'fine', fn = function(src, dept, a) return PWP.Impound.lift(src, dept, num(a.id), a.note) end }
+H.ticketStatement = { perm = 'records', fn = function(src, _, a) return F.statement(src, num(a.id), a.text) end }
+H.voidTicket = { perm = 'command', fn = function(src, _, a)
+    local ok, why = F.void(num(a.id))
+    if not ok then return false, why end
+    Whip.core:LogActivity(src, 'ticket_voided', { detail = tostring(a.id) })
+    return true
+end }
 H.caseEvidence = { perm = 'records', fn = function(_, _, a) return PWP.Forensics.case(num(a.id)) end }
 H.uploadable = { perm = 'records', fn = function(src) return PWP.Forensics.uploadable(src) end }
 H.fileEvidence = { perm = 'records', fn = function(src, _, a) return PWP.Forensics.upload(src, num(a.id), a.refs) end }

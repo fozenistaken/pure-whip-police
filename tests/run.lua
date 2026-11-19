@@ -22,6 +22,7 @@ local SUITES = {
     { 'shared/evidence_logic.lua', 'evidence_test.lua' },
     { 'shared/traffic_logic.lua', 'traffic_test.lua' },
     { 'shared/academy.lua', 'academy_test.lua' },
+    { 'shared/ticket_logic.lua', 'ticket_test.lua' },
 }
 for _, s in ipairs(SUITES) do load(s[1]); test(s[2]) end
 

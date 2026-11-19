@@ -384,8 +384,10 @@ end
 function core.GetVehicle(_, ref)
     local v = vref(ref)
     if not v then return nil end
-    return { id = v.id, vehicleId = v.id, plate = v.plate, owner = v.owner and { charId = v.owner } or nil, entity = v.out ~= false and v.entity or nil, session = v.session }
+    return { id = v.id, vehicleId = v.id, plate = v.plate, model = v.model, state = v.out == false and 'garaged' or 'out',
+        owner = v.owner and { charId = v.owner } or nil, entity = v.out ~= false and v.entity or nil, session = v.session }
 end
+function core.SetVehicleGarage(_, ref, garage) local v = vref(ref) if v.out ~= false then return false, 'It is out' end v.garage = garage return true end
 function core.HoldVehicleEngine(_, id, key, reason) W.holds[id .. ':' .. key] = reason return true end
 function core.ReleaseVehicleEngine(_, id, key) W.holds[id .. ':' .. (key or '')] = nil return true end
 function core.DespawnVehicle(_, id, opts) local v = vref(id) if not v then return false, 'Vehicle not found' end v.out = false v.garage = opts and opts.garage return true end

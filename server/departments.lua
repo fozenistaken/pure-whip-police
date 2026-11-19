@@ -11,6 +11,7 @@ local PERMISSIONS = {
     command = 'Command: licences, roster, department money',
     prison_staff = 'Run the prison',
     dispatch = 'Dispatch: alerts and units',
+    impound_override = 'Lift an impound hold early',
 }
 
 local Depts = { permissions = PERMISSIONS }

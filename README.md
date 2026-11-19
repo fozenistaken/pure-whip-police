@@ -35,6 +35,26 @@ The default points sit in GTA's own interiors. Mission Row uses GTA's `v_policeh
 | Academy | Ranks below `Config.Academy.untilLevel` see MDT → Academy: an exam built from your own penal code (fines, prison time, kinds of charge) plus the questions in `Config.Academy.extra`. Answers stay on the server. Command sees every result for promotions |
 | Cleaning up | A cleaning cloth wipes the gun in your hand (use it), a car's driver door, and blood |
 
+### Tickets
+
+- **Ticket book** (`/ticket`, or F1 → Ticket book): citation, parking ticket or warning, written at the roadside. It lists only the people (5 m) and cars (10 m) around the officer. Charges come from the penal code: `citation` charges for citations and warnings, `parking` charges for parking tickets.
+- **Paper:** the officer keeps a carbon and the person gets their copy (use it to read where it stands). A parking ticket's owner gets a letter.
+- **Signing:** the person is asked to sign. A signed ticket is accepted; an unsigned one can be contested.
+- **Paying and contesting:** in the Courts app, Papers tab: pay per ticket, or contest with a reason. A police kiosk still pays everything that is not contested.
+- **Contests:** the deadline stops. The issuing officer gets a letter and adds a statement on the person's record in the MDT. A judge rules in the Courts app (Contests tab): dismiss, reduce (never above the ticket) or uphold (a new deadline). A contest the court does not hear in `contestDays` is dropped in the citizen's favour.
+- **Overdue:** an unpaid ticket past its date becomes a warrant: months from dollars (`Config.Tickets.overdue`).
+- **Ticket money** goes to the department's account (`Config.Fines.accounts`).
+
+### Impound
+
+- **Two ways in, one form:** from the MDT (Records → a vehicle → Impound, only while it sits in a garage), or on the street (driver door → Police → Impound, or `/mdtimpound`). Both open the same form.
+- **The form records** reason, lot, fee (up to `maxFee`), hold, notes and a photo link. It warns about a stolen car or an open BOLO, shows the owner and earlier impounds, and spells out what the owner will pay at pickup and at most once storage is counted.
+- **Kept records:** every impound stays on record after release (MDT history per car). An open BOLO on the plate closes itself.
+- **Fees and holds:** storage adds `perDay` up to `maxDays`. A hold keeps the car locked for some days or until an officer lifts it. Lifting a hold early needs the `impound_override` permission and a reason, and is logged.
+- **The owner** gets letters when the car is impounded, paid and released. They pay in the Courts app or at the lot office, and collect at the lot.
+- **Lot view:** Records home (empty search) shows every held car with what is owed.
+- **Ownerless cars** are hauled away for a small payout (`Config.Impound.haul`: cooldown and per-shift cap). Spawned session cars and plates hauled before pay nothing.
+
 ## Swapping parts
 
 Under `Config.Providers` in `config.lua` and on the settings page:

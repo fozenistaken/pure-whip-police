@@ -15,8 +15,11 @@ local function sync()
         local ok, why = exports.whip_phone:RegisterModule({ id = APP, script = 'html/mdt/module.js', ns = PWP.RES .. ':mdt' })
         registered = ok == true
         if not ok then print('[pure-whip-police] MDT app: ' .. tostring(why)) end
+        local tok, twhy = exports.whip_phone:RegisterModule({ id = 'pwpticket', script = 'html/mdt/ticket.js', ns = PWP.RES .. ':ticket' })
+        if not tok then print('[pure-whip-police] Ticket book: ' .. tostring(twhy)) end
     elseif not want and registered then
         exports.whip_phone:UnregisterModule(APP)
+        exports.whip_phone:UnregisterModule('pwpticket')
         registered = false
     end
     Whip.core:RemoveAction(WHEEL)

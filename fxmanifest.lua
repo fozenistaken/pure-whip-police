@@ -21,6 +21,7 @@ shared_scripts {
     'shared/evidence_logic.lua',
     'shared/traffic_logic.lua',
     'shared/academy.lua',
+    'shared/ticket_logic.lua',
 }
 
 server_scripts {
@@ -33,6 +34,7 @@ server_scripts {
     'server/gear.lua',
     'server/pay.lua',
     'server/contact.lua',
+    'server/mail.lua',
     'data/penal_code.lua',
     'server/records.lua',
     'server/fines.lua',
@@ -69,6 +71,7 @@ client_scripts {
     'client/traffic.lua',
     'client/feeds.lua',
     'client/impound.lua',
+    'client/tickets.lua',
     'client/k9.lua',
 }
 
@@ -79,6 +82,7 @@ files {
     'html/station/index.html',
     'html/station/app.js',
     'html/mdt/module.js',
+    'html/mdt/ticket.js',
     'html/mdt/livemap.js',
     'html/shared/bracket.js',
     'html/shared/fonts/*.woff2',

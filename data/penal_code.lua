@@ -1,7 +1,13 @@
 -- The penal code a new server starts with. Command edits it in the MDT afterwards (the database copy wins).
 -- code: unique, up to 10 chars. category: infraction | misdemeanor | felony. fine: $. months: prison months.
--- Example: { code = 'T110', title = 'Illegal parking', category = 'infraction', fine = 150, months = 0 }
+-- parking: true makes it a parking ticket charge (written against a car); charges with 0 months that are not felonies
+-- go on roadside citations and warnings. Example: { code = 'T110', title = 'Illegal parking', category = 'infraction', fine = 150, months = 0, parking = true }
 PenalSeed = {
+    { code = 'K101', title = 'Illegal parking', category = 'infraction', fine = 150, months = 0, parking = true },
+    { code = 'K102', title = 'Parking in a fire lane', category = 'infraction', fine = 300, months = 0, parking = true },
+    { code = 'K103', title = 'Blocking a road or driveway', category = 'infraction', fine = 250, months = 0, parking = true },
+    { code = 'K104', title = 'Parking in a disabled space', category = 'infraction', fine = 400, months = 0, parking = true },
+    { code = 'K105', title = 'Abandoned vehicle', category = 'infraction', fine = 500, months = 0, parking = true },
     { code = 'T101', title = 'Speeding', category = 'infraction', fine = 250, months = 0 },
     { code = 'T102', title = 'Running a red light', category = 'infraction', fine = 300, months = 0 },
     { code = 'T103', title = 'Reckless driving', category = 'misdemeanor', fine = 750, months = 0 },

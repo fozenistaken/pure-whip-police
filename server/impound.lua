@@ -1,11 +1,14 @@
-local T = { clamps = 'pure_whip_police_clamps', impound = 'pure_whip_police_impound' }
+local T = { clamps = 'pure_whip_police_clamps', impounds = 'pure_whip_police_impounds', legacy = 'pure_whip_police_impound' }
 local CLAMP = PWP.name('clamp')
-local GARAGE = 'pwp_impound'
 local HOLD = 'clamp'
-local Impound = {}
+local DAY = 86400
+local CFG = Config.Impound
+local TL = PWP.TicketLogic
+local Impound = { hauled = {}, shift = {}, plates = {} }
 PWP.Impound = Impound
 
 local function money(n) return '$' .. tostring(math.floor(n)) end
+local function now() return os.time() end
 
 local function clampedRow(vehicleId)
     return MySQL.single.await(('SELECT * FROM `%s` WHERE `vehicleId` = ?'):format(T.clamps), { vehicleId })
@@ -32,7 +35,7 @@ function Impound.clamp(src, veh, dept)
         and PWP.Fines.issue(owner, Config.Clamp.fine, { reason = 'Wheel clamp, ' .. (veh.plate or ''), by = src, dept = dept }) or nil
     local saved = Whip.core:CommitWithAction({ {
         query = ('INSERT INTO `%s` (`vehicleId`, `plate`, `ownerCharId`, `fineId`, `byCharId`, `at`) VALUES (?, ?, ?, ?, ?, ?)'):format(T.clamps),
-        values = { id, veh.plate, owner, fineId or nil, Whip.core:GetCharId(src), os.time() },
+        values = { id, veh.plate, owner, fineId or nil, Whip.core:GetCharId(src), now() },
     } }, { source = src })
     if not saved then
         Whip.core:AddItem(src, CLAMP, 1, nil, { reason = 'clamp not fitted' })
@@ -59,64 +62,303 @@ function Impound.unclamp(vehicleId, why)
     return true, row
 end
 
-function Impound.tow(src, veh, dept, reason)
-    local id = veh.id or veh.vehicleId
+local function lotOf(id)
+    for i, l in ipairs(CFG.lots) do
+        if l.id == id then return l, i end
+    end
+    return CFG.lots[1], 1
+end
+
+local function garageOf(lotId)
+    local lot, i = lotOf(lotId)
+    return i == 1 and 'pwp_impound' or ('pwp_impound_' .. lot.id)
+end
+
+local function reasonOf(id)
+    for _, r in ipairs(CFG.reasons) do
+        if r.id == id then return r end
+    end
+    return nil
+end
+
+local function storage() return { perDay = CFG.perDay, maxDays = CFG.maxDays } end
+
+local function active(vehicleId)
+    return MySQL.single.await(('SELECT * FROM `%s` WHERE `vehicleId` = ? AND `releasedAt` IS NULL ORDER BY `id` DESC LIMIT 1'):format(T.impounds),
+        { tonumber(vehicleId) })
+end
+
+local function rowById(id)
+    return MySQL.single.await(('SELECT * FROM `%s` WHERE `id` = ?'):format(T.impounds), { tonumber(id) })
+end
+
+local function decorate(row)
+    if not row then return nil end
+    local lot = lotOf(row.lot)
+    row.lotLabel = lot.label
+    row.bill = TL.bill(row, now(), storage())
+    local held, untilAt = TL.held(row, now())
+    row.held, row.heldUntil = held, untilAt
+    row.paid = row.paidAt ~= nil
+    return row
+end
+
+function Impound.of(vehicleId) return decorate(active(vehicleId)) end
+
+local function deptName(dept) return (PWP.dept(dept) or {}).short or 'Police' end
+
+local function holdWords(row)
+    if row.holdOpen == 1 then return 'It is held until the police release it.' end
+    if row.holdUntil and row.holdUntil > now() then return ('It is held until %s.'):format(os.date('%d %b %H:%M', row.holdUntil)) end
+    return 'You can collect it once the fee is paid.'
+end
+
+function Impound.preview(vehicleId)
+    local v = Whip.core:GetVehicle(tonumber(vehicleId))
+    if not v then return false, 'No such vehicle' end
+    local owner = v.owner and v.owner.charId
+    local bolo = v.plate and PWP.Records.boloForPlate(v.plate)
+    local times = MySQL.scalar.await(('SELECT COUNT(*) FROM `%s` WHERE `vehicleId` = ?'):format(T.impounds), { v.id or v.vehicleId }) or 0
+    local lots, reasons = {}, {}
+    for _, l in ipairs(CFG.lots) do lots[#lots + 1] = { id = l.id, label = l.label } end
+    for _, r in ipairs(CFG.reasons) do reasons[#reasons + 1] = { id = r.id, label = r.label, fee = r.fee, holdDays = r.holdDays, hold = r.hold } end
+    return {
+        vehicleId = v.id or v.vehicleId, plate = v.plate, model = v.model, state = v.state,
+        owner = owner, ownerName = owner and (Whip.core:GetCharacterNames({ owner }) or {})[owner] or nil,
+        bolo = bolo and { reason = bolo.reason, stolen = bolo.stolen == 1 } or nil, times = times, impounded = active(v.id or v.vehicleId) ~= nil,
+        lots = lots, reasons = reasons, maxFee = CFG.maxFee, perDay = CFG.perDay, maxDays = CFG.maxDays, maxHoldDays = CFG.maxHoldDays,
+    }
+end
+
+local function park(src, v, via, lotId)
+    local id = v.id or v.vehicleId
+    local garage = garageOf(lotId)
+    if via == 'garage' then
+        if v.state ~= 'garaged' then return false, 'It is not in a garage: impound it where it stands' end
+        local ok, why = Whip.core:SetVehicleGarage(id, garage)
+        if not ok then return false, why end
+    else
+        if not v.entity or not DoesEntityExist(v.entity) then return false, 'The car is not out' end
+        if via == 'street' and #(GetEntityCoords(v.entity) - GetEntityCoords(GetPlayerPed(src))) > 8.0 then return false, 'Stand by the car' end
+        local ok, why = Whip.core:DespawnVehicle(id, { garage = garage, refuseOccupied = true })
+        if not ok then return false, why end
+    end
+    local held, err = Whip.core:SetVehicleCustody(id, true)
+    if not held then print(('[%s] impound custody %s: %s'):format(PWP.RES, tostring(v.plate), tostring(err))) end
+    return true
+end
+
+function Impound.file(src, dept, spec)
+    if type(spec) ~= 'table' then return false, 'Fill in the form' end
+    local v = Whip.core:GetVehicle(tonumber(spec.vehicleId))
+    if not v then return false, 'No such vehicle' end
+    local id = v.id or v.vehicleId
+    local owner = v.owner and v.owner.charId
+    if not owner then return false, 'Nobody owns that car: tow it away instead' end
+    if active(id) then return false, 'It is impounded already' end
+    local reason = reasonOf(spec.reason)
+    if not reason then return false, 'Pick a reason' end
+    local lot = lotOf(spec.lot)
+    local fee = math.floor(tonumber(spec.fee) or reason.fee)
+    if fee < 0 or fee > CFG.maxFee then return false, ('The fee is $0 to $%d'):format(CFG.maxFee) end
+    local photo = spec.photo and tostring(spec.photo) or ''
+    if photo ~= '' and (#photo > 300 or not photo:find('^https?://%S+$')) then return false, 'The photo link must start with https://' end
+    local holdOpen = (reason.hold == 'officer' or spec.holdOpen == true) and 1 or 0
+    local holdDays = holdOpen == 1 and 0 or math.max(0, math.min(CFG.maxHoldDays, math.floor(tonumber(spec.holdDays) or reason.holdDays or 0)))
+    local via = spec.via == 'garage' and 'garage' or (spec.via == 'export' and 'export' or 'street')
     if clampedRow(id) then Impound.unclamp(id, 'impounded') end
+    local ok, why = park(src, v, via, lot.id)
+    if not ok then return false, why end
+    local byChar = src and Whip.core:GetCharId(src)
+    local rowId = MySQL.insert.await(('INSERT INTO `%s` (`vehicleId`, `plate`, `model`, `ownerCharId`, `lot`, `reason`, `fee`, `notes`, `photo`, `dept`, `byCharId`, `at`, `holdUntil`, `holdOpen`, `via`) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'):format(T.impounds),
+        { id, v.plate, v.model, owner, lot.id, reason.label, fee, PWP.Text.clean(spec.notes, 300), photo ~= '' and photo or nil, dept, byChar, now(),
+          holdDays > 0 and now() + holdDays * DAY or nil, holdOpen, via })
+    local bolo = v.plate and PWP.Records.boloForPlate(v.plate)
+    if bolo then PWP.Records.closeBolo(bolo.id, src) end
+    local row = decorate(rowById(rowId))
+    PWP.Mail.send(owner, deptName(dept), 'Impounded: ' .. (v.plate or ''),
+        ('Your car %s was impounded at %s.\nReason: %s.\nFee: %s, plus %s a day for storage (at most %s).\n%s\nPay in the Courts app or at the lot office.')
+            :format(v.plate or '', lot.label, reason.label, money(fee), money(CFG.perDay), money(row.bill.most), holdWords(row)))
+    if src then Whip.core:LogActivity(src, 'impounded', { detail = ('%s (%s)'):format(v.plate or '?', reason.label) }) end
+    TriggerEvent(PWP.event('impounded'), { vehicleId = id, plate = v.plate, owner = owner, by = src, impoundId = rowId, bolo = bolo and bolo.id or nil })
+    return { id = rowId, plate = v.plate, bolo = bolo ~= nil }
+end
+
+local function shiftOf(src)
+    local charId = Whip.core:GetCharId(src)
+    Impound.shift[charId] = Impound.shift[charId] or 0
+    return charId
+end
+
+function Impound.haul(src, veh)
+    local id = veh.id or veh.vehicleId
+    if clampedRow(id) then Impound.unclamp(id, 'hauled') end
+    local paid = false
+    local h = CFG.haul
+    local charId = shiftOf(src)
+    local last = Impound.hauled[charId]
+    local fresh = not veh.session and veh.plate and not Impound.plates[veh.plate]
+    local ok, why = Whip.core:DespawnVehicle(id)
+    if not ok then return false, why end
+    if fresh and h.pay > 0 and (not last or now() - last >= h.cooldownSeconds) and Impound.shift[charId] < h.perShift then
+        local done = Whip.core:PayPlayer(src, h.pay, { reason = 'Hauled an abandoned car' })
+        if done then
+            paid = true
+            Impound.hauled[charId] = now()
+            Impound.shift[charId] = Impound.shift[charId] + 1
+        end
+    end
+    if veh.plate then Impound.plates[veh.plate] = now() end
+    Whip.core:LogActivity(src, 'towed', { detail = veh.plate })
+    return true, paid
+end
+
+function Impound.tow(src, veh, dept, reason)
     if not veh.owner or not veh.owner.charId or veh.session then
-        local ok, why = Whip.core:DespawnVehicle(id)
+        local ok, why = Whip.core:DespawnVehicle(veh.id or veh.vehicleId)
         if not ok then return false, why end
         if src then Whip.core:LogActivity(src, 'towed', { detail = veh.plate }) end
         return true, 'towed'
     end
-    local ok, why = Whip.core:DespawnVehicle(id, { garage = GARAGE, refuseOccupied = true })
-    if not ok then return false, why end
-    local held, err = Whip.core:SetVehicleCustody(id, true)
-    if not held then print(('[%s] impound custody %s: %s'):format(PWP.RES, tostring(veh.plate), tostring(err))) end
-    MySQL.insert.await(('INSERT INTO `%s` (`vehicleId`, `plate`, `ownerCharId`, `fee`, `reason`, `dept`, `byCharId`, `at`) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'):format(T.impound),
-        { id, veh.plate, veh.owner.charId, Config.Impound.fee, PWP.Text.clean(reason, 120) or 'Impounded', dept, src and Whip.core:GetCharId(src), os.time() })
-    if src then Whip.core:LogActivity(src, 'impounded', { detail = veh.plate }) end
-    TriggerEvent(PWP.event('impounded'), { vehicleId = id, plate = veh.plate, owner = veh.owner.charId, by = src })
+    local r = reasonOf(reason) or CFG.reasons[1]
+    local done, why = Impound.file(src, dept, { vehicleId = veh.id or veh.vehicleId, reason = r.id, via = 'export' })
+    if not done then return false, why end
     return true, 'impounded'
 end
 
-function Impound.of(vehicleId)
-    return MySQL.single.await(('SELECT `fee`, `reason`, `at` FROM `%s` WHERE `vehicleId` = ?'):format(T.impound), { vehicleId })
-end
-
-function Impound.release(vehicleId)
-    local ok, why = Whip.core:SetVehicleCustody(vehicleId, false)
+function Impound.release(vehicleId, by, note)
+    local row = active(vehicleId)
+    if not row then return false, 'It is not impounded' end
+    local ok, why = Whip.core:SetVehicleCustody(row.vehicleId, false)
     if not ok then return false, why end
-    MySQL.update.await(('DELETE FROM `%s` WHERE `vehicleId` = ?'):format(T.impound), { vehicleId })
-    return true
+    MySQL.update.await(('UPDATE `%s` SET `releasedAt` = ?, `releasedBy` = ?, `releaseNote` = ? WHERE `id` = ?'):format(T.impounds),
+        { now(), by and Whip.core:GetCharId(by) or nil, PWP.Text.clean(note, 200), row.id })
+    return true, row
 end
 
-local function spawnSpot()
-    local s = Config.Impound.spawn
-    if s then return s end
-    local c, h = Config.Impound.coords, math.rad(Config.Impound.heading or 0.0)
-    return vector4(c.x - math.sin(h) * 6.0, c.y + math.cos(h) * 6.0, c.z, (Config.Impound.heading or 0.0) + 90.0)
-end
+local paying = {}
 
-local function collect(src)
-    local charId = Whip.core:GetCharId(src)
-    local row = charId and MySQL.single.await(('SELECT * FROM `%s` WHERE `ownerCharId` = ? ORDER BY `at` LIMIT 1'):format(T.impound), { charId })
-    if not row then return false, 'Nothing of yours is impounded' end
-    local player = Whip.core:GetPlayer(src)
-    local receipt
-    if row.fee > 0 then
-        local r, why = Whip.core:ChargePlayer(src, row.fee, { reason = 'Impound fee, ' .. row.plate })
-        if not r then return false, why end
-        receipt = r
+local function charge(src, row)
+    local bill = TL.bill(row, now(), storage())
+    if bill.total <= 0 then return true, 0 end
+    if MySQL.scalar.await(('SELECT `paidAt` FROM `%s` WHERE `id` = ?'):format(T.impounds), { row.id }) then return false, 'It was paid already' end
+    local receipt, why = Whip.core:ChargePlayer(src, bill.total, { reason = 'Impound, ' .. (row.plate or '') })
+    if not receipt then return false, why end
+    local saved = Whip.core:CommitWithAction({ {
+        query = ('UPDATE `%s` SET `paidAt` = ?, `paidAmount` = ? WHERE `id` = ? AND `paidAt` IS NULL'):format(T.impounds),
+        values = { now(), bill.total, row.id },
+    } }, { source = src })
+    if not saved then
+        Whip.core:RefundPlayer(receipt)
+        return false, 'Could not save that: your money is back'
     end
-    local ok, why = Impound.release(row.vehicleId)
-    if ok then ok, why = Whip.core:RetrieveVehicle(row.vehicleId, GARAGE) end
-    if ok then ok, why = Whip.core:SpawnVehicle(row.vehicleId, spawnSpot()) end
+    return true, bill.total, receipt
+end
+
+local function deposit(row, total)
+    local acc = total > 0 and PWP.Fines.account(row.dept)
+    if acc then Whip.core:BankSystemDeposit(acc, total, { reason = 'Impound fee ' .. (row.plate or '') }) end
+end
+
+function Impound.pay(src, id)
+    local row = rowById(id)
+    local charId = Whip.core:GetCharId(src)
+    if not row or row.ownerCharId ~= charId or row.releasedAt then return false, 'That is not your impounded car' end
+    if row.paidAt then return false, 'It is paid already' end
+    if paying[charId] then return false, 'Already paying' end
+    paying[charId] = true
+    local ok, done, total = pcall(charge, src, row)
+    paying[charId] = nil
+    if not ok then print(('[%s] impound pay: %s'):format(PWP.RES, tostring(done))) return false, 'Could not pay' end
+    if not done then return false, total end
+    deposit(row, total)
+    row = decorate(rowById(id))
+    PWP.Mail.send(row.ownerCharId, 'Impound', 'Paid: ' .. (row.plate or ''),
+        ('You paid %s for %s. %s'):format(money(row.paidAmount or 0), row.plate or '', row.held and holdWords(row) or ('Collect it at ' .. row.lotLabel .. '.')))
+    return { paid = row.paidAmount }
+end
+
+local function spawnSpot(lot)
+    if lot.spawn then return lot.spawn end
+    local c, h = lot.coords, math.rad(lot.heading or 0.0)
+    return vector4(c.x - math.sin(h) * 6.0, c.y + math.cos(h) * 6.0, c.z, (lot.heading or 0.0) + 90.0)
+end
+
+local function collect(src, lotId)
+    local charId = Whip.core:GetCharId(src)
+    local row = charId and MySQL.single.await(('SELECT * FROM `%s` WHERE `ownerCharId` = ? AND `lot` = ? AND `releasedAt` IS NULL ORDER BY `at` LIMIT 1'):format(T.impounds),
+        { charId, lotId })
+    if not row then return false, 'Nothing of yours is held here' end
+    local held, untilAt = TL.held(row, now())
+    if held then return false, untilAt and ('It is held until %s'):format(os.date('%d %b %H:%M', untilAt)) or 'It is held until the police release it' end
+    local player = Whip.core:GetPlayer(src)
+    local receipt, paidNow
+    if not row.paidAt then
+        local ok, total, r = charge(src, row)
+        if not ok then return false, total end
+        receipt, paidNow = r, total
+    end
+    local lot = lotOf(lotId)
+    local ok, why = Impound.release(row.vehicleId, nil, 'collected')
+    local released = ok
+    if ok then ok, why = Whip.core:RetrieveVehicle(row.vehicleId, garageOf(lotId)) end
+    if ok then ok, why = Whip.core:SpawnVehicle(row.vehicleId, spawnSpot(lot)) end
     if not ok then
-        if receipt and Whip.core:IsSessionCurrent(src, player.session) then Whip.core:RefundPlayer(receipt) end
+        if released then
+            Whip.core:SetVehicleCustody(row.vehicleId, true)
+            MySQL.update.await(('UPDATE `%s` SET `releasedAt` = NULL, `releaseNote` = NULL WHERE `id` = ?'):format(T.impounds), { row.id })
+        end
+        if receipt and Whip.core:IsSessionCurrent(src, player.session) then
+            Whip.core:RefundPlayer(receipt)
+            MySQL.update.await(('UPDATE `%s` SET `paidAt` = NULL, `paidAmount` = NULL WHERE `id` = ?'):format(T.impounds), { row.id })
+        end
         return false, why
     end
+    if paidNow then deposit(row, paidNow) end
+    PWP.Mail.send(charId, 'Impound', 'Released: ' .. (row.plate or ''), ('%s left %s.'):format(row.plate or 'Your car', lot.label))
     Whip.core:NotifyPlayer(src, ('%s is waiting outside.'):format(row.plate), 'success')
     return true
+end
+
+function Impound.lift(src, dept, id, note)
+    local row = rowById(id)
+    if not row or row.releasedAt then return false, 'It is not impounded' end
+    local held = TL.held(row, now())
+    if not held then return false, 'There is no hold to lift' end
+    local can, why = Whip.core:HasJobPermission(src, dept, 'impound_override')
+    if not can then return false, why or 'Your rank cannot lift a hold early' end
+    note = PWP.Text.clean(note, 200)
+    if not note or #note < 5 then return false, 'Say why the hold is lifted early' end
+    MySQL.update.await(('UPDATE `%s` SET `holdOpen` = 0, `holdUntil` = NULL, `override` = 1, `liftedBy` = ?, `liftNote` = ? WHERE `id` = ?'):format(T.impounds),
+        { Whip.core:GetCharId(src), note, row.id })
+    Whip.core:LogActivity(src, 'impound_override', { detail = ('%s: %s'):format(row.plate or '?', note) })
+    PWP.Mail.send(row.ownerCharId, deptName(dept), 'Hold lifted: ' .. (row.plate or ''),
+        ('The hold on %s is lifted. Pay the fee and collect it at %s.'):format(row.plate or 'your car', lotOf(row.lot).label))
+    return true
+end
+
+function Impound.lot(lotId)
+    local sql = ('SELECT * FROM `%s` WHERE `releasedAt` IS NULL'):format(T.impounds)
+    local args = {}
+    if lotId then sql = sql .. ' AND `lot` = ?'; args[1] = lotId end
+    local rows = MySQL.query.await(sql .. ' ORDER BY `at` DESC LIMIT 200', args) or {}
+    local ids = {}
+    for _, r in ipairs(rows) do decorate(r); ids[#ids + 1] = r.ownerCharId end
+    local names = #ids > 0 and Whip.core:GetCharacterNames(ids) or {}
+    for _, r in ipairs(rows) do r.owner = names[r.ownerCharId] end
+    return rows
+end
+
+function Impound.history(vehicleId)
+    local rows = MySQL.query.await(('SELECT * FROM `%s` WHERE `vehicleId` = ? ORDER BY `id` DESC LIMIT 30'):format(T.impounds), { tonumber(vehicleId) }) or {}
+    for _, r in ipairs(rows) do decorate(r) end
+    return rows
+end
+
+function Impound.mine(charId)
+    local rows = MySQL.query.await(('SELECT * FROM `%s` WHERE `ownerCharId` = ? AND `releasedAt` IS NULL ORDER BY `at`'):format(T.impounds), { tonumber(charId) }) or {}
+    for _, r in ipairs(rows) do decorate(r) end
+    return rows
 end
 
 AddEventHandler(PWP.event('finesPaid'), function(e)
@@ -133,6 +375,11 @@ end)
 AddEventHandler('whip_core:vehicle:spawned', function(e)
     if GetInvokingResource() ~= 'whip_core' or type(e) ~= 'table' or not e.vehicleId then return end
     if clampedRow(e.vehicleId) then mark(e.vehicleId, true) end
+end)
+
+AddEventHandler('whip_core:job:clockedOn', function(e)
+    if GetInvokingResource() ~= 'whip_core' or type(e) ~= 'table' or not e.charId then return end
+    Impound.shift[e.charId] = 0
 end)
 
 local function cut(src, veh)
@@ -153,17 +400,33 @@ local function cut(src, veh)
     return true
 end
 
+local function adoptLegacy()
+    local exists = MySQL.scalar.await('SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name = ?', { T.legacy })
+    if (exists or 0) == 0 then return end
+    MySQL.query.await(([[INSERT INTO `%s` (`vehicleId`, `plate`, `ownerCharId`, `lot`, `reason`, `fee`, `dept`, `byCharId`, `at`, `holdOpen`, `via`)
+        SELECT l.`vehicleId`, l.`plate`, l.`ownerCharId`, ?, COALESCE(l.`reason`, 'Impounded'), l.`fee`, l.`dept`, l.`byCharId`, l.`at`, 0, 'street'
+        FROM `%s` l WHERE NOT EXISTS (SELECT 1 FROM `%s` n WHERE n.`vehicleId` = l.`vehicleId` AND n.`at` = l.`at`)]]):format(T.impounds, T.legacy, T.impounds),
+        { CFG.lots[1].id })
+end
+
 Whip.register(function()
     local ok = Whip.core:EnsureTable(T.clamps, ([[CREATE TABLE IF NOT EXISTS `%s` (
         `vehicleId` INT UNSIGNED NOT NULL PRIMARY KEY, `plate` VARCHAR(12) NULL, `ownerCharId` INT UNSIGNED NULL,
         `fineId` INT UNSIGNED NULL, `byCharId` INT UNSIGNED NULL, `at` INT UNSIGNED NOT NULL, INDEX (`fineId`)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4]]):format(T.clamps))
     if not ok then print(('[%s] table %s could not be made'):format(PWP.RES, T.clamps)) end
-    ok = Whip.core:EnsureTable(T.impound, ([[CREATE TABLE IF NOT EXISTS `%s` (
-        `vehicleId` INT UNSIGNED NOT NULL PRIMARY KEY, `plate` VARCHAR(12) NULL, `ownerCharId` INT UNSIGNED NOT NULL,
-        `fee` INT NOT NULL DEFAULT 0, `reason` VARCHAR(120) NULL, `dept` VARCHAR(50) NULL, `byCharId` INT UNSIGNED NULL,
-        `at` INT UNSIGNED NOT NULL, INDEX (`ownerCharId`)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4]]):format(T.impound))
-    if not ok then print(('[%s] table %s could not be made'):format(PWP.RES, T.impound)) end
+    ok = Whip.core:EnsureTable(T.impounds, ([[CREATE TABLE IF NOT EXISTS `%s` (
+        `id` INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY, `vehicleId` INT UNSIGNED NOT NULL, `plate` VARCHAR(12) NULL,
+        `model` VARCHAR(40) NULL, `ownerCharId` INT UNSIGNED NOT NULL, `lot` VARCHAR(32) NOT NULL, `reason` VARCHAR(120) NOT NULL,
+        `fee` INT UNSIGNED NOT NULL DEFAULT 0, `notes` VARCHAR(300) NULL, `photo` VARCHAR(300) NULL, `dept` VARCHAR(50) NULL,
+        `byCharId` INT UNSIGNED NULL, `at` INT UNSIGNED NOT NULL, `via` VARCHAR(8) NOT NULL DEFAULT 'street',
+        `holdUntil` INT UNSIGNED NULL, `holdOpen` TINYINT(1) NOT NULL DEFAULT 0, `override` TINYINT(1) NOT NULL DEFAULT 0,
+        `liftedBy` INT UNSIGNED NULL, `liftNote` VARCHAR(200) NULL, `paidAt` INT UNSIGNED NULL, `paidAmount` INT UNSIGNED NULL,
+        `releasedAt` INT UNSIGNED NULL, `releasedBy` INT UNSIGNED NULL, `releaseNote` VARCHAR(200) NULL,
+        INDEX (`vehicleId`, `releasedAt`), INDEX (`ownerCharId`, `releasedAt`), INDEX (`lot`, `releasedAt`)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4]]):format(T.impounds))
+    if not ok then print(('[%s] table %s could not be made'):format(PWP.RES, T.impounds)) end
+    adoptLegacy()
 
     Whip.core:RegisterItem(CLAMP, { name = 'Wheel Clamp', desc = 'Locks a wheel. The owner pays a fine to have it removed.',
         weight = 4.0, type = 'tool', stack = true, maxStack = 4, prop = 'pwp_wheel_clamp' })
@@ -173,24 +436,25 @@ Whip.register(function()
         mark(row.vehicleId, true)
     end
 
-    local c = Config.Impound.coords
-    if not Whip.core:GetGarage(GARAGE) then
-        local g, why = Whip.core:CreateGarage({ key = GARAGE, name = 'Police Impound', x = c.x, y = c.y, z = c.z,
-            heading = Config.Impound.heading })
-        if not g then print(('[%s] impound garage: %s'):format(PWP.RES, tostring(why))) end
+    for i, lot in ipairs(CFG.lots) do
+        local key, c = garageOf(lot.id), lot.coords
+        if not Whip.core:GetGarage(key) then
+            local g, why = Whip.core:CreateGarage({ key = key, name = lot.label, x = c.x, y = c.y, z = c.z, heading = lot.heading })
+            if not g then print(('[%s] impound garage %d: %s'):format(PWP.RES, i, tostring(why))) end
+        end
+        local id, why = Whip.core:AddPoint({
+            at = { coords = vector3(c.x, c.y, c.z) }, label = lot.label, icon = 'car', audience = 'everyone',
+            reach = 2.5, seeFrom = 12.0,
+            options = { { id = 'collect', label = 'Get my car back' } },
+            onUse = function(source) return collect(source, lot.id) end,
+        })
+        if not id then print(('[%s] impound office %d: %s'):format(PWP.RES, i, tostring(why))) end
     end
-    local id, why = Whip.core:AddPoint({
-        at = { coords = vector3(c.x, c.y, c.z) }, label = 'Impound office', icon = 'car', audience = 'everyone',
-        reach = 2.5, seeFrom = 12.0,
-        options = { { id = 'collect', label = ('Get my car back (%s)'):format(money(Config.Impound.fee)) } },
-        onUse = function(source) return collect(source) end,
-    })
-    if not id then print(('[%s] impound office: %s'):format(PWP.RES, tostring(why))) end
 
     Whip.core:SecureEvent(PWP.event('policecar'), {
         rateLimit = 1500,
         params = { { 'veh', 'vehicle', { anyOwner = true, session = true } }, { 'how', 'enum', { 'clamp', 'unclamp', 'impound', 'cut' } } },
-        near = { at = 'vehicle', range = 4.5 },
+        near = { at = 'vehicle', range = 6.0 },
     }, function(source, _, veh, how)
         if how == 'cut' then return cut(source, veh) end
         local ok2, dept = PWP.Depts.can(source, 'fine')
@@ -205,9 +469,16 @@ Whip.register(function()
             Whip.core:AddItem(source, CLAMP, 1, nil, { reason = 'clamp removed' })
             return Whip.core:NotifyPlayer(source, 'Clamp removed', 'success')
         end
-        local done, kind = Impound.tow(source, veh, dept, 'Impounded by ' .. (PWP.dept(dept).short or 'police'))
-        if not done then return false, kind end
-        Whip.core:NotifyPlayer(source, kind == 'towed' and 'Towed away' or ('Impounded ' .. (veh.plate or '')), 'success')
+        if not veh.owner or not veh.owner.charId or veh.session then
+            local done, paid = Impound.haul(source, veh)
+            if not done then return false, paid end
+            return Whip.core:NotifyPlayer(source, paid and ('Hauled away: %s paid'):format(money(CFG.haul.pay)) or 'Hauled away', 'success')
+        end
+        local form, why = Impound.preview(veh.id or veh.vehicleId)
+        if not form then return false, why end
+        if form.impounded then return false, 'It is impounded already' end
+        form.via = 'street'
+        TriggerClientEvent(PWP.event('impoundForm'), source, form)
     end)
 end)
 
@@ -219,3 +490,6 @@ exports('Impound', function(vehicleId, opts)
 end)
 exports('ReleaseImpound', function(vehicleId) return Impound.release(tonumber(vehicleId)) end)
 exports('IsClamped', function(vehicleId) return clampedRow(tonumber(vehicleId)) ~= nil end)
+exports('GetImpound', function(vehicleId) return Impound.of(tonumber(vehicleId)) end)
+exports('GetMyImpounds', function(charId) return Impound.mine(charId) end)
+exports('PayImpound', function(src, id) return Impound.pay(tonumber(src), id) end)

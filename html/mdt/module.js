@@ -142,6 +142,14 @@
 .mdt-custody ol{margin:.375rem 0 0;padding-left:1.125rem;display:grid;gap:.25rem;font-size:.75rem;color:var(--mute)}
 .mdt-photo{display:block;width:100%;height:auto;border-radius:.5rem;background:var(--line)}
 .mdt-pickrow.on{border-color:var(--accent);outline:1px solid var(--accent)}
+.mdt-warn{display:flex;flex-wrap:wrap;gap:.375rem}
+.pwp-row.mdt-wrap{flex-wrap:wrap}
+.mdt-wrap>.t{flex:1 1 9rem;min-width:0}
+.mdt-wrap>.acts{display:flex;flex-wrap:wrap;align-items:center;gap:.375rem;margin-left:auto}
+.mdt-cost{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:.5rem}
+.mdt-cost div{display:grid;gap:.125rem;padding:.5rem .625rem;border:1px solid var(--line);border-radius:var(--rs)}
+.mdt-cost small{font-size:.625rem;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--faint)}
+.mdt-cost b{font-size:1rem;font-variant-numeric:tabular-nums}
 .mdt-pickrow[aria-disabled="true"]{opacity:.55}
 `;
 
@@ -200,6 +208,19 @@
     const custody = steps.length ? `<details class="mdt-custody"><summary>Chain of custody · ${steps.length}</summary><ol>${steps.map((x) => `<li>${B.esc(x)}</li>`).join('')}</ol></details>` : '';
     return `<section class="pwp-card mdt-ev ${e.gone ? 'gone' : ''}" data-key="ev-${B.esc(e.ref)}"><div class="pwp-row">${e.marker ? `<span class="pwp-code">${B.esc(e.marker)}</span>` : ''}<span class="t">${B.esc(e.type || e.kind)}<span class="s">${sub}</span></span>${flags}</div>${facts.length ? `<div class="mdt-facts">${facts.join('')}</div>` : ''}${pm}${owner}${photo}${custody}</section>`;
   };
+  const TICKET_FLAG = { open: ['Contested', 'warn'], dismissed: ['Dismissed', ''], reduced: ['Reduced', ''], upheld: ['Upheld', 'warn'], lapsed: ['Lapsed', ''] };
+  const ticketFlag = (f) => {
+    if (f.contest && f.contest !== 'none') { const [l, c] = TICKET_FLAG[f.contest] || [f.contest, '']; return `<span class="pwp-flag ${c}">${l}</span>`; }
+    if (f.warrantId) return '<span class="pwp-flag danger">Warrant</span>';
+    if (f.status === 'unpaid') return '<span class="pwp-flag warn">Unpaid</span>';
+    return `<span class="pwp-flag">${B.esc(f.status === 'void' ? 'Void' : f.status === 'warning' ? 'Warning' : 'Paid')}</span>`;
+  };
+  const impCost = (s) => {
+    const f = s.imp; const fee = Math.max(0, Number(String(s.f.impFee || '').replace(/[^0-9]/g, '')) || 0);
+    const days = s.f.impHold === 'days' ? Math.max(0, Number(s.f.impDays) || 0) : 0;
+    const pickup = fee + Math.min(days, f.maxDays) * f.perDay;
+    return { fee, pickup, most: fee + f.maxDays * f.perDay };
+  };
   const copyText = (app, text) => {
     const ctx = live.get(app);
     const doc = (ctx && ctx.el.ownerDocument) || document;
@@ -247,7 +268,7 @@
     }
   };
 
-  const shown = (s) => JSON.stringify([s.nav, s.penal && s.penal.length, s.calls, s.units, s.recent, s.reports, s.warrants, s.bolos, s.prisoners, s.feeds, s.boards, s.board, s.caseEv, s.academy, s.exam, s.examResult, s.err]);
+  const shown = (s) => JSON.stringify([s.nav, s.penal && s.penal.length, s.calls, s.units, s.recent, s.reports, s.warrants, s.bolos, s.prisoners, s.feeds, s.boards, s.board, s.caseEv, s.lot, s.academy, s.exam, s.examResult, s.err]);
 
   const load = async (app) => {
     const s = app.state;
@@ -260,6 +281,7 @@
     if (s.nav === 'boards' && s.board && s.bview === 'locker') jobs.push(loadEv(app));
     if (s.nav === 'dispatch' && s.dview === 'board' && perms(app).records) jobs.push(ask(app, 'feeds', {}, (r) => { s.feeds = r; }, true));
     else jobs.push(ask(app, 'calls', {}, (r) => { s.calls = r.calls; s.units = r.units; }, true));
+    if (s.nav === 'records' && !s.person && !s.results) jobs.push(ask(app, 'lot', { lot: s.lotPick || null }, (r) => { s.lot = r; }, true));
     if (s.nav === 'reports' && !s.edit) jobs.push(ask(app, 'reports', { q: '' }, (r) => { s.reports = r; }, true));
     if (s.nav === 'wanted') {
       jobs.push(ask(app, 'warrants', {}, (r) => { s.warrants = r; }, true));
@@ -341,9 +363,15 @@
       const s = app.state;
       if (s.person) return screens.person(app);
       const r = s.results;
-      if (!r) return { body: head('Records') + scroll('<div class="pwp-empty">Search a name, citizen ID, plate, report number, gun serial or a DNA or print code above.</div>', 'records') };
+      if (!r) {
+        const lot = s.lot || { rows: [], lots: [] };
+        const segLots = lot.lots.length > 1 ? `<div class="pwp-seg" data-glide="lotpick">${[['', 'All']].concat(lot.lots.map((l) => [l.id, l.label])).map(([v, l]) => `<button class="${(s.lotPick || '') === v ? 'on' : ''}" data-act="lotPick" data-v="${B.esc(v)}">${B.esc(l)}</button>`).join('')}</div>` : '';
+        const rows = lot.rows.map((c) => `<div class="pwp-row mdt-wrap" data-key="lot${c.id}"><span class="pwp-plate">${B.esc(c.plate || '')}</span><span class="t">${B.esc(c.owner || 'Owner #' + c.ownerCharId)}<span class="s">${B.esc([c.reason, when(c.at), lot.lots.length > 1 ? c.lotLabel : ''].filter(Boolean).join(' · '))}</span></span>
+          <span class="acts"><span class="num">${B.money(c.paid ? c.paidAmount : c.bill.total)}</span>${c.paid ? '<span class="pwp-flag ok">Paid</span>' : ''}${c.held ? `<span class="pwp-flag warn">${c.heldUntil ? 'Held to ' + B.esc(when(c.heldUntil)) : 'Held'}</span><button class="pwp-btn sm pwp-press" data-act="openSheet" data-k="lift" data-id="${c.id}">Lift</button>` : ''}</span></div>`).join('');
+        return { body: head('Records', null, segLots) + scroll(`<section class="pwp-card"><p class="pwp-lbl">Impound lot</p>${rows || '<div class="pwp-empty">Nothing held</div>'}</section>`, 'records') };
+      }
       const people = r.people.length ? r.people.map((p) => `<button class="pwp-row" data-act="openPerson" data-id="${p.charId}"><span class="pwp-code">${p.charId}</span><span class="t">${B.esc(p.firstName)} ${B.esc(p.lastName)}<span class="s">Born ${B.esc(day(p.dateOfBirth))} · ${B.esc(p.gender)}</span></span>${p.warrant ? '<span class="pwp-flag danger">Wanted</span>' : ''}</button>`).join('') : '';
-      const cars = r.vehicles.length ? r.vehicles.map((v) => `<div class="pwp-row"><span class="pwp-plate">${B.esc(v.plate)}</span><span class="t">${B.esc(v.model)}<span class="s">${v.bolo ? 'BOLO: ' + B.esc(v.bolo.reason) : B.esc(v.owner || 'Owner #' + v.ownerCharId) + ' · ' + B.esc(v.state)}${v.seen ? ' · seen ' + (ago(v.seen.at) === 'now' ? 'just now' : ago(v.seen.at) + ' ago') : ''}</span></span><span class="acts">${v.seen ? `<button class="pwp-btn sm pwp-press" data-act="evWaypoint" data-x="${v.seen.x}" data-y="${v.seen.y}">Last seen</button>` : ''}${!v.bolo && perms(app).records ? `<button class="pwp-btn sm pwp-press" data-act="openSheet" data-k="plate" data-plate="${B.esc(v.plate)}">BOLO</button>` : ''}<button class="pwp-btn sm pwp-press" data-act="openPerson" data-id="${v.ownerCharId}">Owner</button></span></div>`).join('') : '';
+      const cars = r.vehicles.length ? r.vehicles.map((v) => `<div class="pwp-row"><span class="pwp-plate">${B.esc(v.plate)}</span><span class="t">${B.esc(v.model)}<span class="s">${v.bolo ? 'BOLO: ' + B.esc(v.bolo.reason) : B.esc(v.owner || 'Owner #' + v.ownerCharId) + ' · ' + B.esc(v.state)}${v.seen ? ' · seen ' + (ago(v.seen.at) === 'now' ? 'just now' : ago(v.seen.at) + ' ago') : ''}</span></span><span class="acts">${v.impound ? `<span class="pwp-flag warn">${B.esc(v.impound.lot)}</span>` : ''}${!v.impound && v.state === 'garaged' && perms(app).fine ? `<button class="pwp-btn sm pwp-press" data-act="impoundForm" data-id="${v.vehicleId}">Impound</button>` : ''}${v.seen ? `<button class="pwp-btn sm pwp-press" data-act="evWaypoint" data-x="${v.seen.x}" data-y="${v.seen.y}">Last seen</button>` : ''}${!v.bolo && perms(app).records ? `<button class="pwp-btn sm pwp-press" data-act="openSheet" data-k="plate" data-plate="${B.esc(v.plate)}">BOLO</button>` : ''}<button class="pwp-btn sm pwp-press" data-act="openPerson" data-id="${v.ownerCharId}">Owner</button></span></div>`).join('') : '';
       const reps = r.reports.length ? r.reports.map(reportRow).join('') : '';
       const ev = r.evidence || { rows: [] };
       const match = ev.owner ? `<button class="pwp-row" data-act="openPerson" data-id="${ev.owner}"><span class="pwp-code">${ev.owner}</span><span class="t">${B.esc(ev.ownerName || 'Person ' + ev.owner)}<span class="s">Matches what is on file</span></span></button>` : '';
@@ -369,7 +397,8 @@
             ${p.sentence ? `<section class="pwp-card"><p class="pwp-lbl">Sentence</p><div class="pwp-row"><span class="t">${B.esc(p.sentence.reason || 'Serving time')}</span><span class="mdt-big num">${B.esc(p.sentence.minutesLeft)} min</span></div></section>` : ''}
           </div>`,
         history: () => `<section class="pwp-card"><p class="pwp-lbl">Reports</p>${(p.reports || []).length ? p.reports.map((r) => `<button class="pwp-row" data-act="openReport" data-id="${r.id}"><span class="pwp-code">#${r.id}</span><span class="t">${B.esc(r.title)}<span class="s">${when(r.createdAt)}</span></span></button>`).join('') : '<div class="pwp-empty">Not named in any report</div>'}</section>
-          <section class="pwp-card"><p class="pwp-lbl">Fines</p>${(p.fines || []).length ? p.fines.map((f) => `<div class="pwp-row"><span class="t">${B.esc(f.reason || 'Fine')}<span class="s">${when(f.createdAt)}</span></span><span class="num">${B.money(f.amount)}</span><span class="pwp-flag ${f.status === 'unpaid' ? 'warn' : ''}">${B.esc(f.status)}</span></div>`).join('') : '<div class="pwp-empty">No fines</div>'}</section>`,
+          <section class="pwp-card"><p class="pwp-lbl">Tickets and fines</p>${(p.fines || []).length ? p.fines.map((f) => `<div class="pwp-row mdt-wrap" data-key="f${f.id}"><span class="pwp-code">${B.esc(f.number || '')}</span><span class="t">${B.esc(f.reason || f.label || 'Fine')}<span class="s">${B.esc([f.label, f.plate, when(f.createdAt)].filter(Boolean).join(' · '))}</span></span><span class="acts">${f.kind === 'warning' ? '' : `<span class="num">${B.money(f.amount)}</span>`}${ticketFlag(f)}
+            ${f.contest === 'open' && pm.records ? `<button class="pwp-btn sm pwp-press" data-act="openSheet" data-k="statement" data-id="${f.id}">${f.statement ? 'Statement' : 'Add statement'}</button>` : ''}${f.status === 'unpaid' && pm.command ? `<button class="pwp-btn sm ghost pwp-press" data-act="voidTicket" data-id="${f.id}">Void</button>` : ''}</span></div>`).join('') : '<div class="pwp-empty">No tickets or fines</div>'}</section>`,
         vehicles: () => `<section class="pwp-card"><p class="pwp-lbl">Registered vehicles</p>${(p.vehicles || []).length ? p.vehicles.map((v) => `<div class="pwp-row"><span class="pwp-plate">${B.esc(v.plate)}</span><span class="t">${B.esc(v.model)}<span class="s">${B.esc(v.state)}</span></span>${pm.records ? `<button class="pwp-btn sm pwp-press" data-act="openSheet" data-k="plate" data-plate="${B.esc(v.plate)}">BOLO</button>` : ''}</div>`).join('') : '<div class="pwp-empty">No registered vehicles</div>'}</section>`,
         evidence: () => `<section class="pwp-card"><p class="pwp-lbl">On file</p>${p.samples ? `<div class="mdt-facts">
             ${p.samples.dna ? fact('dna', 'DNA', p.samples.dna, true) : ''}${fact('fingerprint', 'Print', p.samples.print, true)}${p.samples.blood ? fact('blood_type', 'Blood type', p.samples.blood, true) : ''}
@@ -525,7 +554,8 @@
     } else if (k === 'plate') {
       title = SHEET_TITLE.plate;
       body = `<input id="f-plate" class="pwp-in mono" data-bind="plate" value="${val(app, 'plate')}" placeholder="Plate">
-        <input id="f-reason" class="pwp-in" data-bind="reason" data-enter="boloPlate" value="${val(app, 'reason')}" placeholder="Why officers should stop it">`;
+        <input id="f-reason" class="pwp-in" data-bind="reason" data-enter="boloPlate" value="${val(app, 'reason')}" placeholder="Why officers should stop it">
+        <div class="mdt-chips"><button class="mdt-chip ${s.f.stolen ? 'on' : ''}" data-act="toggleStolen" aria-pressed="${!!s.f.stolen}">Reported stolen</button></div>`;
       foot = `<button class="pwp-cta wide pwp-press" data-act="boloPlate">Issue BOLO</button>`;
     } else if (k === 'pin') {
       title = 'Pin to ' + s.board.title;
@@ -547,6 +577,36 @@
       }).join('')}</div>` : '<div class="pwp-empty">You carry no bags, photos or guns for a case</div>';
       const n = s.uplSel.length;
       foot = `<button class="pwp-cta wide pwp-press" data-act="fileEvidence" ${n ? '' : 'disabled'}>${n > 1 ? 'File ' + n + ' items' : 'File it'}</button>`;
+    } else if (k === 'impound') {
+      const f = s.imp;
+      title = 'Impound ' + (f.plate || '');
+      const reason = (f.reasons || []).find((x) => x.id === s.f.impReason);
+      const c = impCost(s);
+      const warn = [f.bolo && f.bolo.stolen ? '<span class="pwp-flag danger">Reported stolen</span>' : '', f.bolo ? `<span class="pwp-flag warn">BOLO: ${B.esc(f.bolo.reason)}</span>` : '',
+        f.times ? `<span class="pwp-flag">${f.times === 1 ? 'Impounded once before' : 'Impounded ' + f.times + ' times before'}</span>` : ''].join('');
+      body = `<div class="pwp-row"><span class="pwp-plate">${B.esc(f.plate || '')}</span><span class="t">${B.esc(f.ownerName || 'Owner #' + f.owner)}<span class="s">${B.esc(f.model || '')}${f.via === 'garage' ? ' · in a garage' : ''}</span></span></div>
+        ${warn ? `<div class="mdt-warn">${warn}</div>` : ''}
+        <p class="pwp-lbl">Reason</p><div class="mdt-chips">${(f.reasons || []).map((x) => `<button class="mdt-chip ${s.f.impReason === x.id ? 'on' : ''}" data-act="impReason" data-v="${B.esc(x.id)}">${B.esc(x.label)}</button>`).join('')}</div>
+        ${(f.lots || []).length > 1 ? `<p class="pwp-lbl">Lot</p><div class="pwp-seg" data-glide="implot" style="justify-self:start">${f.lots.map((l) => `<button class="${s.f.impLot === l.id ? 'on' : ''}" data-act="impSet" data-k="impLot" data-v="${B.esc(l.id)}">${B.esc(l.label)}</button>`).join('')}</div>` : ''}
+        <input id="f-impFee" class="pwp-in" data-bind="impFee" inputmode="numeric" value="${val(app, 'impFee')}" placeholder="Fee in $, up to ${B.money(f.maxFee)}">
+        <div class="pwp-seg" data-glide="imphold" style="justify-self:start">${[['none', 'No hold'], ['days', 'Days'], ['officer', 'Until lifted']].map(([v, l]) => `<button class="${s.f.impHold === v ? 'on' : ''}" data-act="impSet" data-k="impHold" data-v="${v}" ${reason && reason.hold === 'officer' && v !== 'officer' ? 'disabled' : ''}>${l}</button>`).join('')}</div>
+        ${s.f.impHold === 'days' ? `<div class="pwp-row"><span class="t">Hold for</span><span class="pwp-step"><button data-act="impDays" data-d="-1" aria-label="One day less">${B.icons.minus}</button><span class="num">${s.f.impDays} d</span><button data-act="impDays" data-d="1" aria-label="One day more">${B.icons.plus}</button></span></div>` : ''}
+        <textarea id="f-impNotes" class="pwp-in" data-bind="impNotes" placeholder="Notes: where it was, what was in it">${val(app, 'impNotes')}</textarea>
+        <input id="f-impPhoto" class="pwp-in" data-bind="impPhoto" value="${val(app, 'impPhoto')}" placeholder="Photo link (https://...)">
+        <div class="mdt-cost"><div><small>Fee</small><b>${B.money(c.fee)}</b></div><div><small>${s.f.impHold === 'days' ? 'At pickup' : 'Per day'}</small><b>${s.f.impHold === 'days' ? B.money(c.pickup) : '+' + B.money(f.perDay)}</b></div><div><small>At most</small><b>${B.money(c.most)}</b></div></div>`;
+      foot = `<button class="pwp-cta wide pwp-press" data-act="impoundFile" ${s.f.impReason ? '' : 'disabled'}>Impound ${B.esc(f.plate || '')}</button>`;
+    } else if (k === 'lift') {
+      title = 'Lift the hold';
+      const c = ((s.lot || {}).rows || []).find((x) => x.id === s.sheet.id) || {};
+      body = `<div class="pwp-row"><span class="pwp-plate">${B.esc(c.plate || '')}</span><span class="t">${B.esc(c.reason || '')}<span class="s">${c.heldUntil ? 'Held to ' + B.esc(when(c.heldUntil)) : 'Held until lifted'}</span></span></div>
+        <input id="f-liftNote" class="pwp-in" data-bind="liftNote" data-enter="liftHold" value="${val(app, 'liftNote')}" placeholder="Why it goes early (logged)">`;
+      foot = '<button class="pwp-cta wide pwp-press" data-act="liftHold">Lift the hold</button>';
+    } else if (k === 'statement') {
+      const f = ((s.person || {}).fines || []).find((x) => x.id === s.sheet.id) || {};
+      title = 'Statement on ' + (f.number || '');
+      body = `${f.contestReason ? `<p class="pwp-lbl">They say</p><p class="mdt-note" style="margin:0">${B.esc(f.contestReason)}</p>` : ''}
+        <textarea id="f-stmt" class="pwp-in" data-bind="stmt" placeholder="What you saw, for the court">${B.esc(s.f.stmt != null ? s.f.stmt : f.statement || '')}</textarea>`;
+      foot = '<button class="pwp-cta wide pwp-press" data-act="ticketStatement">Send to the court</button>';
     } else if (k === 'photo') {
       title = 'Crime scene photo';
       const img = (s.photos || {})[s.sheet.photoId];
@@ -689,6 +749,13 @@
     await ask(app, 'boardLink', { a, b }, null, true);
   };
 
+  const openImpound = (app, form) => {
+    const s = app.state;
+    s.imp = form; s.err = null;
+    s.f.impReason = null; s.f.impFee = ''; s.f.impHold = 'none'; s.f.impDays = 1; s.f.impNotes = ''; s.f.impPhoto = '';
+    s.f.impLot = ((form.lots || [])[0] || {}).id;
+    s.sheet = { kind: 'impound' };
+  };
   const reloadPerson = (app, id) => ask(app, 'person', { charId: id }, (r) => { app.state.person = r; });
 
   const actions = {
@@ -765,6 +832,7 @@
       s.sheet = { kind: d.k };
       if (d.k === 'plate') s.f.plate = d.plate || '';
       if (d.k === 'bolo' || d.k === 'warrant' || d.k === 'plate') s.f.reason = '';
+      if (d.k === 'lift' || d.k === 'statement') { s.sheet.id = Number(d.id); s.f.liftNote = ''; s.f.stmt = null; }
       if (d.k === 'evfile') { s.upl = null; s.uplSel = []; ask(app, 'uploadable', {}, (r) => { s.upl = r || []; }, true).then(() => draw(app)); }
       if (d.k === 'penal' && !d.keep) { s.f.pCode = s.f.pTitle = s.f.pFine = s.f.pMonths = ''; s.f.pCat = 'misdemeanor'; }
     },
@@ -796,7 +864,7 @@
       await ask(app, 'issueWarrant', { charId: p.charId, reason: app.state.f.reason || '' }, async () => { app.state.sheet = null; app.toast('Warrant issued'); await reloadPerson(app, p.charId); });
     },
     async boloPlate(app) {
-      await ask(app, 'addBolo', { plate: app.state.f.plate || '', reason: app.state.f.reason || '' }, () => { app.state.sheet = null; app.toast('Lookout issued'); });
+      await ask(app, 'addBolo', { plate: app.state.f.plate || '', reason: app.state.f.reason || '', stolen: !!app.state.f.stolen }, () => { app.state.sheet = null; app.state.f.stolen = false; app.toast('Lookout issued'); });
     },
     async openBoard(app, d) { const s = app.state; s.pinSel = null; s.linking = false; s.caseEv = null; await ask(app, 'board', { id: Number(d.id) }, (r) => { s.board = r; }); },
     async closeBoard(app) { const s = app.state; s.board = null; s.pinSel = null; s.linking = false; s.bview = 'board'; s.caseEv = null; ask(app, 'boardLeave', {}, null, true); await load(app); },
@@ -885,6 +953,44 @@
         parts = r.parts; chunks.push(r.data);
       }
       s.photos[pid] = chunks.join('');
+    },
+    lotPick(app, d) { app.state.lotPick = d.v || null; return load(app); },
+    toggleStolen(app) { app.state.f.stolen = !app.state.f.stolen; },
+    async impoundForm(app, d) {
+      await ask(app, 'impoundPreview', { vehicleId: Number(d.id) }, (r) => { if (r) openImpound(app, { ...r, via: 'garage' }); });
+    },
+    impReason(app, d) {
+      const s = app.state; const r = (s.imp.reasons || []).find((x) => x.id === d.v);
+      if (!r) return;
+      s.f.impReason = r.id; s.f.impFee = String(r.fee || 0);
+      s.f.impHold = r.hold === 'officer' ? 'officer' : (r.holdDays ? 'days' : 'none');
+      s.f.impDays = r.holdDays || 1;
+    },
+    impSet(app, d) { app.state.f[d.k] = d.v; },
+    impDays(app, d) { const s = app.state; s.f.impDays = Math.max(1, Math.min(s.imp.maxHoldDays || 30, (Number(s.f.impDays) || 1) + Number(d.d))); },
+    async impoundFile(app) {
+      const s = app.state; const f = s.imp;
+      const spec = { vehicleId: f.vehicleId, via: f.via, reason: s.f.impReason, lot: s.f.impLot,
+        fee: Number(String(s.f.impFee || '').replace(/[^0-9]/g, '')) || 0, holdOpen: s.f.impHold === 'officer',
+        holdDays: s.f.impHold === 'days' ? Number(s.f.impDays) || 0 : 0, notes: s.f.impNotes || '', photo: s.f.impPhoto || '' };
+      await ask(app, 'impoundFile', { spec }, (r) => {
+        s.sheet = null; s.imp = null;
+        app.toast('Impounded ' + (r.plate || '') + (r.bolo ? ' · BOLO closed' : ''));
+        if (app.forced) app.done({ filed: true });
+        else load(app);
+      });
+    },
+    async liftHold(app) {
+      const s = app.state; const id = s.sheet.id;
+      await ask(app, 'liftHold', { id, note: s.f.liftNote || '' }, async () => { s.sheet = null; app.toast('Hold lifted'); await load(app); });
+    },
+    async ticketStatement(app) {
+      const s = app.state; const id = s.sheet.id; const f = s.person.fines.find((x) => x.id === id) || {};
+      await ask(app, 'ticketStatement', { id, text: s.f.stmt != null ? s.f.stmt : f.statement || '' }, async () => { s.sheet = null; app.toast('Statement sent'); await reloadPerson(app, s.person.charId); });
+    },
+    async voidTicket(app, d) {
+      const s = app.state;
+      await ask(app, 'voidTicket', { id: Number(d.id) }, async () => { app.toast('Voided'); await reloadPerson(app, s.person.charId); });
     },
     copy(app, d) { copyText(app, d.v || ''); app.toast('Copied'); return 'skip'; },
     async examStart(app) { const s = app.state; s.examResult = null; await ask(app, 'examStart', {}, (r) => { s.exam = r; s.examAnswers = {}; }); },
@@ -1041,12 +1147,15 @@
       if (ctx) { if (ctx.off) ctx.off(); stopPoll(ctx); if (ctx.map) ctx.map.detach(); }
       live.delete(app);
     },
-    async open(app) {
+    async open(app, args) {
       await ask(app, 'me', {}, (r) => { app.state.me = r; });
-      if (app.state.me) await load(app);
+      if (!app.state.me) return;
+      if (args && args.impound) { app.state.nav = 'records'; openImpound(app, args.impound); }
+      await load(app);
     },
     back(app) {
       const s = app.state;
+      if (s.sheet && s.sheet.kind === 'impound' && app.forced) { s.sheet = null; app.done({ filed: false }); return true; }
       if (s.sheet) { closeSheet(app); return true; }
       if (s.pick != null) { s.pick = null; draw(app); return true; }
       if (s.edit) { s.edit = null; load(app); draw(app); return true; }

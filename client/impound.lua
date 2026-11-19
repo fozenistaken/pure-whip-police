@@ -82,6 +82,26 @@ Whip.register(function()
     })
 end)
 
+RegisterNetEvent(PWP.event('impoundForm'), function(form)
+    if type(form) ~= 'table' then return end
+    CreateThread(function()
+        local _, why = exports.whip_phone:RunApp('pwpmdt', { impound = form })
+        if why and why ~= 'busy' then Whip.core:Notify('MDT: ' .. tostring(why), 'error') end
+    end)
+end)
+
+RegisterCommand('mdtimpound', function()
+    local me = GetEntityCoords(PlayerPedId())
+    local best, bestDist
+    for _, veh in ipairs(GetGamePool('CVehicle')) do
+        local d = #(GetEntityCoords(veh) - me)
+        if d <= 6.0 and (not bestDist or d < bestDist) then best, bestDist = veh, d end
+    end
+    local id = best and Whip.core:GetVehicleId(best)
+    if not id then return Whip.core:Notify('Stand next to the car', 'error') end
+    TriggerServerEvent(PWP.event('policecar'), id, 'impound')
+end, false)
+
 AddEventHandler('onResourceStop', function(res)
     if res ~= GetCurrentResourceName() then return end
     for _, objs in pairs(props) do remove(objs) end

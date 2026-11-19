@@ -16,10 +16,11 @@ Config.Ranks = {
     { name = 'Chief', level = 100 },
     { name = 'Captain', level = 80, permissions = { canHire = true, canFire = true, canPromote = true, canDemote = true,
         cuff = true, search = true, jail = true, fine = true, fine_custom = true, armory = true, fleet = true,
-        records = true, warrants = true, command = true, prison_staff = true, dispatch = true } },
+        records = true, warrants = true, command = true, prison_staff = true, dispatch = true,
+        impound_override = true } },
     { name = 'Lieutenant', level = 60, permissions = { canHire = true, canPromote = true, cuff = true, search = true,
         jail = true, fine = true, fine_custom = true, armory = true, fleet = true, records = true, warrants = true,
-        command = true, prison_staff = true, dispatch = true } },
+        command = true, prison_staff = true, dispatch = true, impound_override = true } },
     { name = 'Sergeant', level = 40, permissions = { cuff = true, search = true, jail = true, fine = true,
         armory = true, fleet = true, records = true, warrants = true, prison_staff = true, dispatch = true } },
     { name = 'Senior Officer', level = 20, permissions = { cuff = true, search = true, jail = true, fine = true,
@@ -217,10 +218,43 @@ Config.Feeds = { seeMetres = 60.0, darkMinutes = 30, plateSeconds = 4, bodycam =
 -- Example: Config.Clamp = { fine = 400, cutSeconds = 40 }
 Config.Clamp = { fine = 250, cutSeconds = 25 }
 
--- The impound lot. coords: where owners collect their cars (a WHIP garage is made there), heading: its facing.
--- spawn: where a released car appears (vector4), or nil for 6 m in front of the office. fee: $ to get a car back,
--- 0-100000. Example: Config.Impound = { coords = vector3(409.3, -1623.1, 29.3), heading = 230.0, spawn = nil, fee = 750 }
-Config.Impound = { coords = vector3(409.3, -1623.1, 29.3), heading = 230.0, spawn = nil, fee = 500 }
+-- Impound. lots: the yards; each { id, label, coords (the office, a WHIP garage is made there), heading, spawn (vector4
+-- where a released car appears, or nil for 6 m in front of the office) }. The first lot's garage keeps the key
+-- 'pwp_impound'. reasons: what the form offers; fee: $ 0-100000; holdDays: days the car stays locked, 0-30;
+-- hold = 'officer': locked until an officer lifts it. maxFee: the most an officer may set, 0-100000. perDay: storage $
+-- a day, 0-10000; maxDays: storage stops counting after this many days, 0-60. maxHoldDays: longest timed hold, 1-60.
+-- haul: cars nobody owns are hauled away; pay: $ to the officer, 0-5000; cooldownSeconds: between two hauls, 0-600;
+-- perShift: hauls paid per duty shift, 0-100.
+-- Example lot: { id = 'paleto', label = 'Paleto Impound', coords = vector3(-457.0, 6016.0, 31.3), heading = 45.0 }
+-- Example reason: { id = 'dui', label = 'Driving under the influence', fee = 1000, holdDays = 2 }
+Config.Impound = {
+    lots = {
+        { id = 'davis', label = 'Davis Impound', coords = vector3(409.3, -1623.1, 29.3), heading = 230.0, spawn = nil },
+    },
+    reasons = {
+        { id = 'parking', label = 'Illegal parking', fee = 250 },
+        { id = 'abandoned', label = 'Abandoned vehicle', fee = 300 },
+        { id = 'unlicensed', label = 'Unlicensed driver', fee = 500, holdDays = 1 },
+        { id = 'dui', label = 'Driving under the influence', fee = 1000, holdDays = 2 },
+        { id = 'racing', label = 'Street racing', fee = 1500, holdDays = 3 },
+        { id = 'stolen', label = 'Recovered stolen vehicle', fee = 0 },
+        { id = 'evidence', label = 'Held as evidence', fee = 0, hold = 'officer' },
+        { id = 'crime', label = 'Used in a crime', fee = 1000, hold = 'officer' },
+    },
+    maxFee = 25000, perDay = 100, maxDays = 7, maxHoldDays = 30,
+    haul = { pay = 150, cooldownSeconds = 90, perShift = 8 },
+}
+
+-- Tickets written at the roadside (/ticket, or the Ticket book on the F1 wheel). dueDays: days to pay, 1-60.
+-- contestDays: days the court has to rule on a contest before it lapses in the citizen's favour, 1-60.
+-- personMetres / vehicleMetres: how near a person (2-15) or a car (3-30) must be to be picked. maxAmount: the most
+-- one ticket can be, $ 1-1000000. cooldownSeconds: between two tickets from one officer, 0-300.
+-- overdue: an unpaid ticket past its date becomes a warrant; dollarsPerMonth: $ per month of the warrant, 1-100000;
+-- minMonths / maxMonths: 1-120. Example: Config.Tickets = { dueDays = 5, contestDays = 3, ..., overdue = { enabled = false } }
+Config.Tickets = {
+    dueDays = 7, contestDays = 5, personMetres = 5.0, vehicleMetres = 10.0, maxAmount = 25000, cooldownSeconds = 15,
+    overdue = { enabled = true, dollarsPerMonth = 500, minMonths = 1, maxMonths = 10 },
+}
 
 -- K9 unit, for officers with the k9 licence on duty (F1 wheel -> K9). model: the dog's ped model (a_c_shepherd,
 -- a_c_rottweiler, a_c_husky). smells: Lua patterns of item keys the dog alerts on (it sits by them, as a real
@@ -254,9 +288,11 @@ Config.Academy = {
     },
 }
 
--- Fines. account: the bank account number fines are paid into (e.g. 'WB-123456', a business account an admin made
--- for the city); nil sends the money nowhere. Kiosks are points of kind 'kiosk', open to everyone.
-Config.Fines = { account = nil }
+-- Fines, tickets and impound fees. account: the bank account number they are paid into (e.g. 'WB-123456', a business
+-- account an admin made for the city); nil sends the money nowhere. accounts: per department key, wins over account.
+-- Kiosks are points of kind 'kiosk', open to everyone.
+-- Example: Config.Fines = { account = 'WB-100001', accounts = { lspd = 'WB-100002', bcso = 'WB-100003' } }
+Config.Fines = { account = nil, accounts = {} }
 
 -- Prison (Bolingbroke). Positions from qb-prison's open config (inside spots, the gate outside, the work spots).
 -- minutesPerMonth: real minutes served per sentenced month, 0.1-60. maxMonths: the longest one sentence, 1-1200.
