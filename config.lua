@@ -85,6 +85,29 @@ Config.Licences = {
     traffic = 'Traffic unit',
 }
 
+-- Citizen licences on a person's record in the MDT. key: letters, digits and _; value: the name shown. Officers
+-- suspend them (days) and command issues, revokes and reinstates them; other scripts use the GrantCitizenLicence /
+-- GetCitizenLicences exports (a driving school, a gun shop). Example: pilot = 'Pilot licence'
+Config.CitizenLicences = { driver = 'Driver licence', weapon = 'Weapon permit', hunting = 'Hunting licence' }
+
+-- Records. tags: labels officers can put on a person (shown on the record and in search), up to 24 characters each.
+-- Example: tags = { 'Armed', 'Violent', 'Gang member' }
+Config.Records = { tags = { 'Armed', 'Violent', 'Gang member', 'Flight risk', 'Officer safety', 'Mental health', 'Informant' } }
+
+-- Report templates offered when an officer starts a new report. name: the button, title: the start of the title,
+-- body: the text it starts with. Example: { name = 'Pursuit', title = 'Pursuit: ', body = 'Start:\nEnd:\nVehicles:\n' }
+Config.ReportTemplates = {
+    { name = 'Traffic stop', title = 'Traffic stop: ', body = 'Where:\nVehicle and plate:\nReason for the stop:\nWhat happened:\nOutcome:' },
+    { name = 'Arrest', title = 'Arrest: ', body = 'Who:\nWhere and when:\nWhy they were arrested:\nRights read by:\nEvidence taken:\nCharges:' },
+    { name = 'Use of force', title = 'Use of force: ', body = 'Who:\nWhat force and why:\nInjuries:\nWitnesses:\nBody cam:' },
+    { name = 'Incident', title = 'Incident: ', body = 'Where and when:\nWhat happened:\nPeople involved:\nWhat was done:' },
+}
+
+-- Warrants. judge: 'auto' sends officers' warrants to a judge in the courts app while pure-whip-courts runs (the judge
+-- signs or denies them); false lets officers with the warrants permission issue them at once. requestDays: a request
+-- nobody signs lapses after this many days, 1-14. Example: Config.Warrants = { judge = false, requestDays = 3 }
+Config.Warrants = { judge = 'auto', requestDays = 3 }
+
 -- Personal lockers: one per character, opened at any locker point. slots: 1-100. weight: kg, 1-1000.
 Config.Locker = { slots = 30, weight = 120.0 }
 -- Shared station stashes (kind = stash points): slots 1-200, weight kg 1-5000.

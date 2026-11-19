@@ -5,6 +5,8 @@ local T = {
     charges = 'pure_whip_police_report_charges',
     warrants = 'pure_whip_police_warrants',
     bolos = 'pure_whip_police_bolos',
+    tags = 'pure_whip_police_tags',
+    rveh = 'pure_whip_police_report_vehicles',
     notes = 'pure_whip_police_notes',
 }
 local ROLES = { suspect = true, victim = true, witness = true, officer = true }
@@ -110,11 +112,24 @@ local function cleanCharges(list)
     return out
 end
 
-local function writeChildren(id, people, charges)
+local function cleanPlates(list)
+    local out, seen = {}, {}
+    for _, plate in ipairs(type(list) == 'table' and list or {}) do
+        local norm = Plates.norm(plate)
+        if norm and not seen[norm] and #out < 12 then seen[norm] = true; out[#out + 1] = norm end
+    end
+    return out
+end
+
+local function writeChildren(id, people, charges, plates)
     local queries = {
         { query = q('DELETE FROM {people} WHERE `reportId` = ?'), values = { id } },
         { query = q('DELETE FROM {charges} WHERE `reportId` = ?'), values = { id } },
+        { query = q('DELETE FROM {rveh} WHERE `reportId` = ?'), values = { id } },
     }
+    for _, plate in ipairs(plates or {}) do
+        queries[#queries + 1] = { query = q('INSERT INTO {rveh} (`reportId`, `plate`) VALUES (?, ?)'), values = { id, plate } }
+    end
     for _, p in ipairs(people) do
         queries[#queries + 1] = { query = q('INSERT INTO {people} (`reportId`, `charId`, `role`) VALUES (?, ?, ?)'),
             values = { id, p.charId, p.role } }
@@ -135,7 +150,7 @@ function Records.addReport(opts)
     local id = MySQL.insert.await(q('INSERT INTO {reports} (`dept`, `authorCharId`, `title`, `body`) VALUES (?, ?, ?, ?)'),
         { opts.dept, charOf(opts.by), title, body })
     if not id then return false, 'Could not save the report' end
-    if not writeChildren(id, cleanPeople(opts.people), cleanCharges(opts.charges)) then
+    if not writeChildren(id, cleanPeople(opts.people), cleanCharges(opts.charges), cleanPlates(opts.plates)) then
         MySQL.update.await(q('DELETE FROM {reports} WHERE `id` = ?'), { id })
         return false, 'Could not save the report'
     end
@@ -153,7 +168,7 @@ function Records.updateReport(id, rev, patch, by)
     local changed = MySQL.update.await(q([[UPDATE {reports} SET `title` = ?, `body` = ?, `status` = ?, `rev` = `rev` + 1,
         `editedBy` = ? WHERE `id` = ? AND `rev` = ?]]), { title, body, status, charOf(by), id, tonumber(rev) or -1 })
     if changed ~= 1 then return false, 'Someone saved this report after you opened it: reopen it and try again' end
-    if not writeChildren(id, cleanPeople(patch.people), cleanCharges(patch.charges)) then
+    if not writeChildren(id, cleanPeople(patch.people), cleanCharges(patch.charges), cleanPlates(patch.plates)) then
         return false, 'The report saved but its people and charges did not: try again'
     end
     return (tonumber(rev) or 0) + 1
@@ -164,6 +179,9 @@ function Records.getReport(id)
     if not r then return nil end
     r.people = MySQL.query.await(q('SELECT `charId`, `role` FROM {people} WHERE `reportId` = ?'), { r.id }) or {}
     r.charges = MySQL.query.await(q('SELECT `charId`, `code`, `count` FROM {charges} WHERE `reportId` = ?'), { r.id }) or {}
+    local plates = MySQL.query.await(q('SELECT `plate` FROM {rveh} WHERE `reportId` = ?'), { r.id }) or {}
+    r.plates = {}
+    for _, v in ipairs(plates) do r.plates[#r.plates + 1] = v.plate end
     return r
 end
 
@@ -176,8 +194,13 @@ function Records.listReports(filter)
             { tonumber(filter.charId), limit }) or {}
     end
     if filter.search then
-        return MySQL.query.await(q([[SELECT `id`, `title`, `status`, `dept`, `createdAt` FROM {reports}
-            WHERE `title` LIKE ? ORDER BY `id` DESC LIMIT ?]]), { '%' .. filter.search .. '%', limit }) or {}
+        local like = '%' .. filter.search:gsub('[%%_\\]', '\\%0') .. '%'
+        return MySQL.query.await(q([[SELECT `id`, `title`, `status`, `dept`, `createdAt` FROM {reports} r
+            WHERE r.`title` LIKE ? OR r.`body` LIKE ?
+               OR r.`id` IN (SELECT v.`reportId` FROM {rveh} v WHERE v.`plate` LIKE ?)
+               OR r.`id` IN (SELECT p.`reportId` FROM {people} p JOIN `characters` c ON c.`charId` = p.`charId`
+                             WHERE CONCAT(c.`firstName`, ' ', c.`lastName`) LIKE ?)
+            ORDER BY r.`id` DESC LIMIT ?]]), { like, like, like, like, limit }) or {}
     end
     return MySQL.query.await(q('SELECT `id`, `title`, `status`, `dept`, `createdAt` FROM {reports} ORDER BY `id` DESC LIMIT ?'),
         { limit }) or {}
@@ -196,6 +219,65 @@ function Records.issueWarrant(charId, opts)
     if not id then return false, 'Could not save the warrant' end
     TriggerEvent(PWP.event('warrant'), { id = id, charId = charId, by = opts.by, active = true })
     return id
+end
+
+function Records.requestWarrant(charId, opts)
+    opts = opts or {}
+    charId = tonumber(charId)
+    if not charId then return false, 'No such character' end
+    local reason = Text.clean(opts.reason, 300)
+    if not reason then return false, 'A warrant needs a reason' end
+    local days = math.max(1, math.min(90, math.floor(tonumber(opts.days) or 14)))
+    local id = MySQL.insert.await(q([[INSERT INTO {warrants} (`charId`, `reason`, `dept`, `issuedBy`, `reportId`, `status`, `days`, `expiresAt`)
+        VALUES (?, ?, ?, ?, ?, 'requested', ?, DATE_ADD(NOW(), INTERVAL ? DAY))]]),
+        { charId, reason, opts.dept, charOf(opts.by), tonumber(opts.reportId), days, Config.Warrants.requestDays })
+    if not id then return false, 'Could not save the request' end
+    TriggerEvent(PWP.event('warrantRequested'), { id = id, charId = charId, by = opts.by })
+    return id
+end
+
+function Records.warrantRequests()
+    return MySQL.query.await(q([[SELECT w.*, UNIX_TIMESTAMP(w.`expiresAt`) AS `lapsesAt`, UNIX_TIMESTAMP(w.`createdAt`) AS `askedAt`
+        FROM {warrants} w WHERE w.`status` = 'requested' AND w.`expiresAt` > NOW() ORDER BY w.`id` LIMIT 100]])) or {}
+end
+
+function Records.signWarrant(id, approve, judgeCharId, note)
+    local w = MySQL.single.await(q("SELECT * FROM {warrants} WHERE `id` = ? AND `status` = 'requested' AND `expiresAt` > NOW()"), { tonumber(id) })
+    if not w then return false, 'No open request with that number' end
+    note = Text.clean(note, 200)
+    if approve then
+        MySQL.update.await(q([[UPDATE {warrants} SET `status` = 'active', `signedBy` = ?, `signedAt` = ?, `judgeNote` = ?,
+            `expiresAt` = DATE_ADD(NOW(), INTERVAL ? DAY) WHERE `id` = ?]]), { judgeCharId, os.time(), note, w.days or 14, w.id })
+        TriggerEvent(PWP.event('warrant'), { id = w.id, charId = w.charId, active = true })
+    else
+        MySQL.update.await(q("UPDATE {warrants} SET `status` = 'denied', `signedBy` = ?, `signedAt` = ?, `judgeNote` = ? WHERE `id` = ?"),
+            { judgeCharId, os.time(), note, w.id })
+    end
+    if w.issuedBy and PWP.Mail then
+        PWP.Mail.send(w.issuedBy, 'Courts', (approve and 'Warrant signed: #' or 'Warrant denied: #') .. w.id,
+            ('%s\n%s'):format(w.reason, note or (approve and 'Signed.' or 'Denied.')))
+    end
+    return true
+end
+
+function Records.tags(charId)
+    local rows = MySQL.query.await(q('SELECT `tag` FROM {tags} WHERE `charId` = ? ORDER BY `tag`'), { tonumber(charId) }) or {}
+    local out = {}
+    for _, r in ipairs(rows) do out[#out + 1] = r.tag end
+    return out
+end
+
+function Records.setTag(charId, tag, on, by)
+    charId = tonumber(charId)
+    local known = false
+    for _, t in ipairs(Config.Records.tags) do if t == tag then known = true end end
+    if not charId or not known then return false, 'Pick one of the tags' end
+    if on then
+        MySQL.insert.await(q('INSERT IGNORE INTO {tags} (`charId`, `tag`, `byCharId`, `at`) VALUES (?, ?, ?, ?)'), { charId, tag, charOf(by), os.time() })
+    else
+        MySQL.update.await(q('DELETE FROM {tags} WHERE `charId` = ? AND `tag` = ?'), { charId, tag })
+    end
+    return true
 end
 
 function Records.warrants(charId, activeOnly)
@@ -284,6 +366,7 @@ function Records.getRecord(charId)
         warrants = Records.warrants(charId, false),
         reports = Records.listReports({ charId = charId, limit = 30 }),
         notes = Records.notes(charId),
+        tags = Records.tags(charId),
         fines = PWP.Fines and PWP.Fines.list(charId) or {},
         sentence = PWP.Prison and PWP.Prison.sentenceOf(charId) or nil,
     }
@@ -323,9 +406,18 @@ Whip.register(function()
     ensure('warrants', ([[CREATE TABLE IF NOT EXISTS `%s` (
         `id` INT UNSIGNED NOT NULL AUTO_INCREMENT, `charId` INT NOT NULL, `reason` VARCHAR(300) NOT NULL,
         `dept` VARCHAR(50) NULL, `issuedBy` INT NULL, `closedBy` INT NULL, `reportId` INT UNSIGNED NULL,
-        `status` ENUM('active','served','cancelled') NOT NULL DEFAULT 'active',
+        `status` ENUM('active','served','cancelled','requested','denied') NOT NULL DEFAULT 'active',
+        `days` TINYINT UNSIGNED NULL, `signedBy` INT NULL, `signedAt` INT UNSIGNED NULL, `judgeNote` VARCHAR(200) NULL,
         `expiresAt` DATETIME NOT NULL, `createdAt` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        PRIMARY KEY (`id`), KEY `charId` (`charId`, `status`)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4]]):format(T.warrants))
+        PRIMARY KEY (`id`), KEY `charId` (`charId`, `status`)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4]]):format(T.warrants), {
+        { id = 'warrant_requests', statements = {
+            q("ALTER TABLE {warrants} MODIFY `status` ENUM('active','served','cancelled','requested','denied') NOT NULL DEFAULT 'active'"),
+            { sql = q('ALTER TABLE {warrants} ADD COLUMN `days` TINYINT UNSIGNED NULL'), unless = { column = { T.warrants, 'days' } } },
+            { sql = q('ALTER TABLE {warrants} ADD COLUMN `signedBy` INT NULL'), unless = { column = { T.warrants, 'signedBy' } } },
+            { sql = q('ALTER TABLE {warrants} ADD COLUMN `signedAt` INT UNSIGNED NULL'), unless = { column = { T.warrants, 'signedAt' } } },
+            { sql = q('ALTER TABLE {warrants} ADD COLUMN `judgeNote` VARCHAR(200) NULL'), unless = { column = { T.warrants, 'judgeNote' } } },
+        } },
+    })
     ensure('bolos', ([[CREATE TABLE IF NOT EXISTS `%s` (
         `id` INT UNSIGNED NOT NULL AUTO_INCREMENT, `charId` INT NULL, `plate` VARCHAR(8) NULL,
         `reason` VARCHAR(300) NOT NULL, `stolen` TINYINT(1) NOT NULL DEFAULT 0, `dept` VARCHAR(50) NULL, `issuedBy` INT NULL, `closedBy` INT NULL,
@@ -340,11 +432,24 @@ Whip.register(function()
         `id` INT UNSIGNED NOT NULL AUTO_INCREMENT, `charId` INT NOT NULL, `authorCharId` INT NULL,
         `text` VARCHAR(1000) NOT NULL, `createdAt` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
         PRIMARY KEY (`id`), KEY `charId` (`charId`)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4]]):format(T.notes))
+    ensure('tags', [[CREATE TABLE IF NOT EXISTS {tags} (`charId` INT NOT NULL, `tag` VARCHAR(24) NOT NULL, `byCharId` INT NULL,
+        `at` INT UNSIGNED NOT NULL, PRIMARY KEY (`charId`, `tag`)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4]])
+    ensure('rveh', [[CREATE TABLE IF NOT EXISTS {rveh} (`reportId` INT UNSIGNED NOT NULL, `plate` VARCHAR(8) NOT NULL,
+        PRIMARY KEY (`reportId`, `plate`), KEY `plate` (`plate`)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4]])
     seedPenal()
     Records.loadPenal()
 end)
 
 exports('GetPenalCode', function() return Records.penalList end)
+exports('GetWarrantRequests', function()
+    local rows = Records.warrantRequests()
+    local ids = {}
+    for _, r in ipairs(rows) do ids[#ids + 1] = r.charId; if r.issuedBy then ids[#ids + 1] = r.issuedBy end end
+    local names = #ids > 0 and Whip.core:GetCharacterNames(ids) or {}
+    for _, r in ipairs(rows) do r.name, r.officer = names[r.charId], r.issuedBy and names[r.issuedBy] or nil end
+    return rows
+end)
+exports('SignWarrant', function(id, approve, judgeCharId, note) return Records.signWarrant(id, approve == true, judgeCharId, note) end)
 exports('PriceCharges', function(charges)
     local list = {}
     for _, c in ipairs(type(charges) == 'table' and charges or {}) do

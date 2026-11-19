@@ -99,6 +99,13 @@ MySQL = {
     scalar = { await = function(sql, args) local r = run(bind(sql, args))[1]; if not r then return nil end; local _, v = next(r); return v end },
     insert = { await = function(sql, args) local r = run(bind(sql, args) .. ';\nSELECT LAST_INSERT_ID() AS id;')[1]; return r and r.id end },
     update = { await = function(sql, args) local r = run(bind(sql, args) .. ';\nSELECT ROW_COUNT() AS n;')[1]; return r and r.n end },
+    transaction = { await = function(list)
+        local parts = { 'START TRANSACTION' }
+        for _, q in ipairs(list) do parts[#parts + 1] = bind(q.query or q[1], q.values or q.parameters or q[2]) end
+        parts[#parts + 1] = 'COMMIT'
+        run(table.concat(parts, ';\n'))
+        return true
+    end },
     ready = function(cb) cb() end,
 }
 

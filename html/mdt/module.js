@@ -382,7 +382,7 @@ button.pwp-code.mdt-cp{background:none;padding:0;text-align:left}
           <span class="acts">${c.towState === 'waiting' ? '<span class="pwp-flag route">Waiting for tow</span>' : ''}<span class="num">${B.money(c.paid ? c.paidAmount : c.bill.total)}</span>${c.paid ? '<span class="pwp-flag ok">Paid</span>' : ''}${c.held ? `<span class="pwp-flag warn">${c.heldUntil ? 'Held to ' + B.esc(when(c.heldUntil)) : 'Held'}</span><button class="pwp-btn sm pwp-press" data-act="openSheet" data-k="lift" data-id="${c.id}">Lift</button>` : ''}</span></div>`).join('');
         return { body: head('Records', null, segLots) + scroll(`<section class="pwp-card"><p class="pwp-lbl">Impound lot</p>${rows || '<div class="pwp-empty">Nothing held</div>'}</section>`, 'records') };
       }
-      const people = r.people.length ? r.people.map((p) => `<button class="pwp-row" data-act="openPerson" data-id="${p.charId}"><span class="pwp-code">${p.charId}</span><span class="t">${B.esc(p.firstName)} ${B.esc(p.lastName)}<span class="s">Born ${B.esc(day(p.dateOfBirth))} · ${B.esc(p.gender)}</span></span>${p.warrant ? '<span class="pwp-flag danger">Wanted</span>' : ''}</button>`).join('') : '';
+      const people = r.people.length ? r.people.map((p) => `<button class="pwp-row" data-act="openPerson" data-id="${p.charId}"><span class="pwp-code">${p.charId}</span><span class="t">${B.esc(p.firstName)} ${B.esc(p.lastName)}<span class="s">Born ${B.esc(day(p.dateOfBirth))} · ${B.esc(p.gender)}</span></span>${(p.tags || []).slice(0, 2).map((t) => `<span class="pwp-flag warn">${B.esc(t)}</span>`).join('')}${p.warrant ? '<span class="pwp-flag danger">Wanted</span>' : ''}</button>`).join('') : '';
       const cars = r.vehicles.length ? r.vehicles.map((v) => `<div class="pwp-row"><button class="pwp-plate mdt-cp" data-act="copy" data-v="${B.esc(v.plate)}" title="Copy">${B.esc(v.plate)}</button><span class="t">${B.esc(v.model)}<span class="s">${v.bolo ? 'BOLO: ' + B.esc(v.bolo.reason) : B.esc(v.owner || 'Owner #' + v.ownerCharId) + ' · ' + B.esc(v.state)}${v.seen ? ' · seen ' + (ago(v.seen.at) === 'now' ? 'just now' : ago(v.seen.at) + ' ago') : ''}</span></span><span class="acts">${v.impound ? `<span class="pwp-flag warn">${B.esc(v.impound.lot)}</span>` : ''}${!v.impound && v.state === 'garaged' && perms(app).fine ? `<button class="pwp-btn sm pwp-press" data-act="impoundForm" data-id="${v.vehicleId}">Impound</button>` : ''}${v.seen ? `<button class="pwp-btn sm pwp-press" data-act="evWaypoint" data-x="${v.seen.x}" data-y="${v.seen.y}">Last seen</button>` : ''}${!v.bolo && perms(app).records ? `<button class="pwp-btn sm pwp-press" data-act="openSheet" data-k="plate" data-plate="${B.esc(v.plate)}">BOLO</button>` : ''}<button class="pwp-btn sm pwp-press" data-act="openPerson" data-id="${v.ownerCharId}">Owner</button></span></div>`).join('') : '';
       const reps = r.reports.length ? r.reports.map(reportRow).join('') : '';
       const ev = r.evidence || { rows: [] };
@@ -401,10 +401,21 @@ button.pwp-code.mdt-cp{background:none;padding:0;text-align:left}
       const s = app.state; const p = s.person; const pm = perms(app);
       const active = (p.warrants || []).filter((w) => w.status === 'active');
       const unpaid = (p.fines || []).filter((f) => f.status === 'unpaid');
-      const flags = [active.length ? '<span class="pwp-flag danger">Wanted</span>' : '', p.sentence ? '<span class="pwp-flag route">In prison</span>' : '', p.online ? '<span class="pwp-flag">In town</span>' : ''].join('');
+      const flags = [active.length ? '<span class="pwp-flag danger">Wanted</span>' : '', p.sentence ? '<span class="pwp-flag route">In prison</span>' : '', p.online ? '<span class="pwp-flag">In town</span>' : '',
+        ...(p.tags || []).map((t) => `<span class="pwp-flag warn">${B.esc(t)}</span>`)].join('');
+      const asked = (p.warrants || []).filter((w) => w.status === 'requested');
+      const LIC = { valid: ['Valid', 'ok'], suspended: ['Suspended', 'warn'], revoked: ['Revoked', 'danger'] };
+      const kinds = (s.me && s.me.licenceKinds) || {};
+      const lic = Object.entries(kinds).map(([k, label]) => {
+        const l = (p.licences || []).find((x) => x.kind === k);
+        const st = l ? LIC[l.status] || [l.status, ''] : ['None', ''];
+        return `<div class="pwp-row mdt-wrap" data-key="lic${k}"><span class="t">${B.esc(label)}<span class="s">${l && l.status === 'suspended' && l.untilAt ? 'until ' + B.esc(when(l.untilAt)) + ' · ' : ''}${B.esc((l && l.note) || '')}</span></span><span class="acts"><span class="pwp-flag ${st[1]}">${st[0]}</span>${pm.records ? `<button class="pwp-btn sm pwp-press" data-act="openSheet" data-k="licence" data-v="${B.esc(k)}">Change</button>` : ''}</span></div>`;
+      }).join('');
       const tab = {
         overview: () => `<div class="mdt-grid">
             <section class="pwp-card"><p class="pwp-lbl">Warrants</p>${active.length ? active.map((w) => `<div class="pwp-row"><span class="t">${B.esc(w.reason)}<span class="s">Valid until ${when(w.expiresAt)}</span></span>${pm.warrants ? `<button class="pwp-btn sm pwp-press" data-act="closeWarrant" data-id="${w.id}" data-s="served">Served</button>` : ''}</div>`).join('') : '<div class="pwp-empty">None active</div>'}</section>
+            ${asked.length ? `<section class="pwp-card"><p class="pwp-lbl">Warrants asked for</p>${asked.map((w) => `<div class="pwp-row"><span class="t">${B.esc(w.reason)}<span class="s">Waiting for a judge</span></span><span class="pwp-flag route">Asked</span></div>`).join('')}</section>` : ''}
+            ${lic ? `<section class="pwp-card"><p class="pwp-lbl">Licences</p>${lic}</section>` : ''}
             <section class="pwp-card"><p class="pwp-lbl">Unpaid fines</p>${unpaid.length ? `<div class="pwp-row"><span class="t">${unpaid.length === 1 ? '1 citation' : unpaid.length + ' citations'}</span><span class="mdt-big num">${B.money(unpaid.reduce((a, f) => a + f.amount, 0))}</span></div>` : '<div class="pwp-empty">None</div>'}</section>
             ${p.sentence ? `<section class="pwp-card"><p class="pwp-lbl">Sentence</p><div class="pwp-row"><span class="t">${B.esc(p.sentence.reason || 'Serving time')}</span><span class="mdt-big num">${B.esc(p.sentence.minutesLeft)} min</span></div></section>` : ''}
           </div>`,
@@ -420,6 +431,7 @@ button.pwp-code.mdt-cp{background:none;padding:0;text-align:left}
       const canCharge = pm.fine || pm.jail;
       const acts = [
         pm.records ? `<button class="pwp-btn mdt-side-act pwp-press" data-act="openSheet" data-k="note" aria-label="Note">${B.icons.note}<span class="mdt-at">Note</span></button>` : '',
+        pm.records ? `<button class="pwp-btn mdt-side-act pwp-press" data-act="openSheet" data-k="tags" aria-label="Tags">${B.icons.pin}<span class="mdt-at">Tags</span></button>` : '',
         pm.records ? `<button class="pwp-btn mdt-side-act pwp-press" data-act="openSheet" data-k="bolo" aria-label="BOLO">${B.icons.wanted}<span class="mdt-at">BOLO</span></button>` : '',
         pm.warrants ? `<button class="pwp-btn mdt-side-act pwp-press" data-act="openSheet" data-k="warrant" aria-label="Warrant">${B.icons.command}<span class="mdt-at">Warrant</span></button>` : '',
         canCharge ? `<button class="pwp-cta has-kbd pwp-press" data-act="openSheet" data-k="charge">${B.icons.gavel}Charge<span class="pwp-kbd">C</span></button>` : '',
@@ -454,10 +466,15 @@ button.pwp-code.mdt-cp{background:none;padding:0;text-align:left}
             <textarea id="f-editBody" class="pwp-in" data-bind="editBody" placeholder="Who, what, when, where, and what you did" ${edit ? '' : 'readonly'}>${B.esc(r.body || '')}</textarea>
             ${r.author ? `<span class="pwp-code" style="color:var(--faint)">Written by ${B.esc(r.author)}</span>` : ''}
           </section>
+          ${edit && !r.id && !r.body && ((s.me && s.me.templates) || []).length ? `<div class="mdt-chips">${s.me.templates.map((t, i) => `<button class="mdt-chip" data-act="useTemplate" data-i="${i}">${B.esc(t.name)}</button>`).join('')}</div>` : ''}
           <section class="pwp-card"><p class="pwp-lbl">People</p>
             ${(r.people || []).length ? r.people.map((p, i) => `<div class="pwp-row"><span class="pwp-code">${p.charId}</span><span class="t">${B.esc(p.name || 'Citizen ' + p.charId)}<span class="s">${B.esc(p.role)}</span></span>${edit ? `<button class="pwp-btn ghost icon pwp-press" data-act="removePerson" data-i="${i}" aria-label="Remove">${B.icons.x}</button>` : ''}</div>`).join('') : '<div class="pwp-empty">Nobody added</div>'}
             ${edit ? `<div class="pwp-row"><input id="f-addPersonId" class="pwp-in" style="max-width:8rem" data-bind="addPersonId" value="${val(app, 'addPersonId')}" placeholder="Citizen ID" inputmode="numeric">
               <span class="acts">${['suspect', 'victim', 'witness'].map((role) => `<button class="pwp-btn sm pwp-press" data-act="addPerson" data-role="${role}">${B.icons.plus}${role[0].toUpperCase() + role.slice(1)}</button>`).join('')}</span></div>` : ''}
+          </section>
+          <section class="pwp-card"><p class="pwp-lbl">Vehicles</p>
+            ${(r.plates || []).length ? r.plates.map((pl, i) => `<div class="pwp-row"><button class="pwp-plate mdt-cp" data-act="copy" data-v="${B.esc(pl)}" title="Copy">${B.esc(pl)}</button><span class="t"></span>${edit ? `<button class="pwp-btn ghost icon pwp-press" data-act="removePlate" data-i="${i}" aria-label="Remove">${B.icons.x}</button>` : ''}</div>`).join('') : '<div class="pwp-empty">No vehicles</div>'}
+            ${edit ? `<div class="pwp-row"><input id="f-addPlate" class="pwp-in mono" style="max-width:9rem" data-bind="addPlate" data-enter="addPlate" value="${val(app, 'addPlate')}" placeholder="Plate"><span class="acts"><button class="pwp-btn sm pwp-press" data-act="addPlate">${B.icons.plus}Add</button></span></div>` : ''}
           </section>
           <section class="pwp-card"><p class="pwp-lbl">Charges</p>
             ${(r.charges || []).length ? r.charges.map((c, i) => `<div class="pwp-row"><span class="pwp-code">${B.esc(c.code)}</span><span class="t">${B.esc((pmap[c.code] || {}).title || '')}<span class="s">Citizen ${B.esc(c.charId)}${c.count > 1 ? ' · ×' + c.count : ''}</span></span>${edit ? `<button class="pwp-btn ghost icon pwp-press" data-act="removeReportCharge" data-i="${i}" aria-label="Remove">${B.icons.x}</button>` : ''}</div>`).join('') : '<div class="pwp-empty">No charges</div>'}
@@ -609,6 +626,20 @@ button.pwp-code.mdt-cp{background:none;padding:0;text-align:left}
         ${f.tow && f.via === 'street' ? `<div class="mdt-chips"><button class="mdt-chip ${s.f.impTow ? 'on' : ''}" data-act="impTow" aria-pressed="${!!s.f.impTow}">Send a tow truck</button></div>` : ''}
         <div class="mdt-cost"><div><small>Fee</small><b>${B.money(c.fee)}</b></div><div><small>${s.f.impHold === 'days' ? 'At pickup' : 'Per day'}</small><b>${s.f.impHold === 'days' ? B.money(c.pickup) : '+' + B.money(f.perDay)}</b></div><div><small>At most</small><b>${B.money(c.most)}</b></div></div>`;
       foot = `<button class="pwp-cta wide pwp-press" data-act="impoundFile" ${s.f.impReason ? '' : 'disabled'}>${s.f.impTow ? 'Call the tow for ' : 'Impound '}${B.esc(f.plate || '')}</button>`;
+    } else if (k === 'tags') {
+      title = 'Tags: ' + s.person.firstName + ' ' + s.person.lastName;
+      const on = new Set(s.person.tags || []);
+      body = `<div class="mdt-chips">${((s.me && s.me.tags) || []).map((t) => `<button class="mdt-chip ${on.has(t) ? 'on' : ''}" data-act="toggleTag" data-v="${B.esc(t)}" aria-pressed="${on.has(t)}">${B.esc(t)}</button>`).join('')}</div>`;
+      foot = '';
+    } else if (k === 'licence') {
+      const kind = s.sheet.kind2; const label = ((s.me && s.me.licenceKinds) || {})[kind] || kind;
+      const l = (s.person.licences || []).find((x) => x.kind === kind);
+      const acts = (!l || l.status !== 'valid' ? [['grant', l ? 'Reinstate' : 'Issue']] : []).concat(l && l.status === 'valid' ? [['suspend', 'Suspend'], ['revoke', 'Revoke']] : []).concat(l && l.status === 'suspended' ? [['revoke', 'Revoke']] : []);
+      title = label + ': ' + s.person.firstName + ' ' + s.person.lastName;
+      body = `<div class="pwp-seg" data-glide="licact" style="justify-self:start">${acts.map(([v, l2]) => `<button class="${s.f.licAct === v ? 'on' : ''}" data-act="impSet" data-k="licAct" data-v="${v}">${l2}</button>`).join('')}</div>
+        ${s.f.licAct === 'suspend' ? `<div class="pwp-row"><span class="t">Suspend for</span><span class="pwp-step"><button data-act="licDays" data-d="-1" aria-label="One day less">${B.icons.minus}</button><span class="num">${s.f.licDays} d</span><button data-act="licDays" data-d="1" aria-label="One day more">${B.icons.plus}</button></span></div>` : ''}
+        <input id="f-licNote" class="pwp-in" data-bind="licNote" value="${val(app, 'licNote')}" placeholder="${s.f.licAct === 'grant' ? 'Note (optional)' : 'Why (the holder reads it)'}">`;
+      foot = `<button class="pwp-cta wide pwp-press" data-act="licence" ${s.f.licAct ? '' : 'disabled'}>Save</button>`;
     } else if (k === 'closeCall') {
       const c = (s.calls || []).find((x) => x.id === s.sheet.id) || {};
       title = 'Close ' + (c.code || 'the call');
@@ -800,6 +831,20 @@ button.pwp-code.mdt-cp{background:none;padding:0;text-align:left}
       await ask(app, 'clearCall', { id, outcome, note }, () => load(app));
     },
     pickOutcome(app, d) { app.state.f.outcome = d.v; },
+    async toggleTag(app, d) {
+      const s = app.state; const p = s.person; const tags = new Set(p.tags || []); const on = !tags.has(d.v);
+      if (on) tags.add(d.v); else tags.delete(d.v);
+      p.tags = [...tags].sort();
+      draw(app);
+      const r = await ask(app, 'setTag', { charId: p.charId, tag: d.v, on }, null, true);
+      if (r === null) await reloadPerson(app, p.charId);
+    },
+    licDays(app, d) { const s = app.state; s.f.licDays = Math.max(1, Math.min(90, (Number(s.f.licDays) || 7) + Number(d.d))); },
+    async licence(app) {
+      const s = app.state; const p = s.person;
+      await ask(app, 'licence', { charId: p.charId, kind: s.sheet.kind2, act: s.f.licAct, days: s.f.licDays, note: s.f.licNote || '' },
+        async () => { s.sheet = null; app.toast('Licence updated'); await reloadPerson(app, p.charId); });
+    },
     dview(app, d) { app.state.dview = d.v; if (d.v !== 'map') app.state.pick = null; if (d.v === 'board' || d.v === 'log') load(app); },
     async watch(app, d) { await ask(app, 'watch', d.k === 'cam' ? { kind: 'cam', id: Number(d.id) } : { kind: 'unit', target: Number(d.id) }); },
     async pickCall(app, d) {
@@ -861,6 +906,7 @@ button.pwp-code.mdt-cp{background:none;padding:0;text-align:left}
       s.sheet = { kind: d.k };
       if (d.k === 'plate') s.f.plate = d.plate || '';
       if (d.k === 'bolo' || d.k === 'warrant' || d.k === 'plate') s.f.reason = '';
+      if (d.k === 'licence') { s.sheet.kind2 = d.v; const l = (s.person.licences || []).find((x) => x.kind === d.v); s.f.licAct = !l || l.status !== 'valid' ? 'grant' : 'suspend'; s.f.licDays = 7; s.f.licNote = ''; }
       if (d.k === 'closeCall') { s.sheet.id = Number(d.id); s.f.outcome = 'resolved'; s.f.callNote = ''; }
       if (d.k === 'lift' || d.k === 'statement') { s.sheet.id = Number(d.id); s.f.liftNote = ''; s.f.stmt = null; }
       if (d.k === 'evfile') { s.upl = null; s.uplSel = []; ask(app, 'uploadable', {}, (r) => { s.upl = r || []; }, true).then(() => draw(app)); }
@@ -891,7 +937,7 @@ button.pwp-code.mdt-cp{background:none;padding:0;text-align:left}
     },
     async issueWarrant(app) {
       const p = app.state.person;
-      await ask(app, 'issueWarrant', { charId: p.charId, reason: app.state.f.reason || '' }, async () => { app.state.sheet = null; app.toast('Warrant issued'); await reloadPerson(app, p.charId); });
+      await ask(app, 'issueWarrant', { charId: p.charId, reason: app.state.f.reason || '' }, async (r) => { app.state.sheet = null; app.toast(r && r.requested ? 'Sent to a judge to sign' : 'Warrant issued'); await reloadPerson(app, p.charId); });
     },
     async boloPlate(app) {
       await ask(app, 'addBolo', { plate: app.state.f.plate || '', reason: app.state.f.reason || '', stolen: !!app.state.f.stolen }, () => { app.state.sheet = null; app.state.f.stolen = false; app.toast('Lookout issued'); });
@@ -1035,7 +1081,18 @@ button.pwp-code.mdt-cp{background:none;padding:0;text-align:left}
       await ask(app, 'closeWarrant', { id: Number(d.id), status: d.s }, async () => { if (app.state.person) await reloadPerson(app, app.state.person.charId); else await load(app); });
     },
     async closeBolo(app, d) { await ask(app, 'closeBolo', { id: Number(d.id) }, () => load(app)); },
-    newReport(app) { app.state.edit = { title: '', body: '', status: 'open', people: [], charges: [] }; },
+    newReport(app) { app.state.edit = { title: '', body: '', status: 'open', people: [], charges: [], plates: [] }; },
+    useTemplate(app, d) {
+      const s = app.state; const t = ((s.me && s.me.templates) || [])[Number(d.i)];
+      if (!t || !s.edit) return;
+      s.edit.title = t.title || ''; s.edit.body = t.body || '';
+    },
+    addPlate(app) {
+      const s = app.state; const plate = String(s.f.addPlate || '').trim().toUpperCase();
+      if (!plate) { s.err = 'Type the plate first'; return; }
+      s.edit.plates = (s.edit.plates || []).filter((x) => x !== plate).concat(plate); s.f.addPlate = '';
+    },
+    removePlate(app, d) { const s = app.state; s.edit.plates = (s.edit.plates || []).filter((_, i) => i !== Number(d.i)); },
     async openReport(app, d) {
       const s = app.state;
       await ask(app, 'report', { id: Number(d.id) }, (r) => { s.nav = 'reports'; s.edit = r; s.person = null; s.sheet = null; });
@@ -1059,7 +1116,7 @@ button.pwp-code.mdt-cp{background:none;padding:0;text-align:left}
     setStatus(app, d) { app.state.edit.status = d.v; },
     async saveReport(app) {
       const r = app.state.edit;
-      await ask(app, 'saveReport', { id: r.id, rev: r.rev, title: r.title, body: r.body, status: r.status, people: r.people, charges: r.charges },
+      await ask(app, 'saveReport', { id: r.id, rev: r.rev, title: r.title, body: r.body, status: r.status, people: r.people, charges: r.charges, plates: r.plates || [] },
         (res) => { r.id = res.id; r.rev = res.rev; app.toast('Report saved'); });
     },
     pCat(app, d) { app.state.f.pCat = d.g; },

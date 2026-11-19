@@ -37,6 +37,7 @@ server_scripts {
     'server/mail.lua',
     'data/penal_code.lua',
     'server/records.lua',
+    'server/permits.lua',
     'server/fines.lua',
     'server/front.lua',
     'server/prison.lua',

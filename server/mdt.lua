@@ -37,7 +37,8 @@ function H.me(src, dept)
     return { dept = dept, deptLabel = PWP.dept(dept).label, short = PWP.dept(dept).short, rank = role.name,
         level = role.level, name = p.fullName, callsign = D.callsign(src), status = u.status, perms = perms,
         courts = PWP.courts() ~= nil, academy = (role.level or 0) < Config.Academy.untilLevel,
-        forensics = PWP.forensics() ~= nil }
+        forensics = PWP.forensics() ~= nil, tags = Config.Records.tags, templates = Config.ReportTemplates,
+        licenceKinds = Config.CitizenLicences, judge = Config.Warrants.judge == 'auto' and PWP.courts() ~= nil }
 end
 
 function H.dashboard(src, dept)
@@ -59,7 +60,7 @@ function H.people(_, _, a)
         rows = MySQL.query.await([[SELECT `charId`, `firstName`, `lastName`, `dateOfBirth`, `gender` FROM `characters`
             WHERE `deleted` IS NULL AND CONCAT(`firstName`, ' ', `lastName`) LIKE ? ORDER BY `lastName` LIMIT 25]], { '%' .. q .. '%' })
     end
-    for _, r in ipairs(rows or {}) do r.warrant = #R.warrants(r.charId, true) > 0 end
+    for _, r in ipairs(rows or {}) do r.warrant = #R.warrants(r.charId, true) > 0; r.tags = R.tags(r.charId) end
     return rows or {}
 end
 
@@ -70,6 +71,7 @@ function H.person(_, _, a)
     if not row then return false, 'No such person' end
     local rec = R.getRecord(charId) or {}
     row.warrants, row.reports, row.notes, row.fines, row.sentence = rec.warrants, rec.reports, rec.notes, rec.fines, rec.sentence
+    row.tags, row.licences = rec.tags or {}, PWP.Permits.list(charId)
     decorate(row.notes or {}, 'authorCharId', 'author')
     row.vehicles = MySQL.query.await('SELECT `vehicleId`, `model`, `plate`, `state` FROM `vehicles` WHERE `ownerCharId` = ? LIMIT 20', { charId }) or {}
     row.online = sourceOf(charId) ~= nil
@@ -132,7 +134,7 @@ function H.report(_, _, a)
 end
 
 H.saveReport = { perm = 'records', fn = function(src, dept, a)
-    local data = { title = a.title, body = a.body, status = a.status, people = a.people, charges = a.charges }
+    local data = { title = a.title, body = a.body, status = a.status, people = a.people, charges = a.charges, plates = a.plates }
     if num(a.id) then
         local rev, why = R.updateReport(num(a.id), num(a.rev), data, src)
         if not rev then return false, why end
@@ -148,10 +150,25 @@ end }
 function H.warrants() return decorate(R.activeWarrants(100), 'charId', 'name') end
 
 H.issueWarrant = { perm = 'warrants', fn = function(src, dept, a)
-    local id, why = R.issueWarrant(num(a.charId), { reason = a.reason, days = a.days, dept = dept, by = src, reportId = a.reportId })
+    local judge = Config.Warrants.judge == 'auto' and PWP.courts() ~= nil
+    local opts = { reason = a.reason, days = a.days, dept = dept, by = src, reportId = a.reportId }
+    local id, why
+    if judge then id, why = R.requestWarrant(num(a.charId), opts) else id, why = R.issueWarrant(num(a.charId), opts) end
     if not id then return false, why end
-    Whip.core:LogActivity(src, 'warrant_issued', { detail = ('warrant %d on charId %s'):format(id, tostring(a.charId)) })
-    return { id = id }
+    Whip.core:LogActivity(src, judge and 'warrant_requested' or 'warrant_issued', { detail = ('warrant %d on charId %s'):format(id, tostring(a.charId)) })
+    return { id = id, requested = judge or nil }
+end }
+
+H.setTag = { perm = 'records', fn = function(src, _, a) return R.setTag(num(a.charId), a.tag, a.on == true, src) end }
+H.licence = { perm = 'records', fn = function(src, dept, a)
+    if a.act ~= 'suspend' then
+        local ok, why = Whip.core:HasJobPermission(src, dept, 'command')
+        if not ok then return false, why or 'Only command issues, revokes and reinstates licences' end
+    end
+    local ok, why = PWP.Permits.act(num(a.charId), a.kind, a.act, { days = a.days, note = a.note }, src)
+    if not ok then return false, why end
+    Whip.core:LogActivity(src, 'licence_' .. tostring(a.act), { detail = ('%s for charId %s'):format(tostring(a.kind), tostring(a.charId)) })
+    return true
 end }
 
 H.closeWarrant = { perm = 'warrants', fn = function(src, _, a)
