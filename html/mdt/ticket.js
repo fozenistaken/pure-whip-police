@@ -37,6 +37,8 @@
     const sum = chargesFor(s).filter((c) => s.codes[c.code]).reduce((a, c) => a + c.fine, 0);
     return Math.min(sum, (s.data && s.data.maxAmount) || sum);
   };
+  const norm = (p) => String(p || '').trim().toUpperCase();
+  const radarHere = (s) => !!(s.radar && s.data && s.data.cars.some((c) => norm(c.plate) === norm(s.radar.plate)));
   const ready = (s) => Object.values(s.codes).some(Boolean) && (s.kind === 'parking' ? s.car != null : s.person != null);
 
   const render = (app) => {
@@ -55,6 +57,7 @@
       <div class="tb-body" data-scroll="tb">
         ${s.err ? `<div class="pwp-err" role="alert">${B.icons.alert}<span>${B.esc(s.err)}</span></div>` : ''}
         <div class="pwp-seg" data-glide="tbkind" style="justify-self:start">${KINDS.map(([v, l]) => `<button class="${s.kind === v ? 'on' : ''}" data-act="kind" data-v="${v}" aria-pressed="${s.kind === v}">${l}</button>`).join('')}</div>
+        ${s.radar && s.kind !== 'parking' ? `<section class="pwp-card"><p class="pwp-lbl">Radar</p><div class="pwp-row"><span class="pwp-plate">${B.esc(s.radar.plate)}</span><span class="t"><span class="num">${B.esc(s.radar.speed)} ${B.esc(s.radar.unit)}</span><span class="s">${radarHere(s) ? 'Locked reading, the car is here' : 'Locked reading'}</span></span>${radarHere(s) ? '' : '<span class="pwp-flag warn">Not a car here</span>'}</div></section>` : ''}
         <section class="pwp-card"><p class="pwp-lbl">${s.kind === 'parking' ? 'Car' : 'Person'}</p><div class="tb-pick">${who}</div></section>
         <section class="pwp-card"><p class="pwp-lbl">Charges</p>
           <label class="pwp-search">${B.icons.search}<input id="f-tbq" data-bind="q" value="${B.esc(s.q || '')}" placeholder="Find a charge" autocomplete="off"></label>
@@ -99,7 +102,7 @@
       if (!r) return;
       s.done = { number: r.number, amount: r.amount, label: KINDS.find(([v]) => v === s.kind)[1] };
       draw(app);
-      setTimeout(() => { if (app.forced) app.done({ number: r.number }); }, 1400);
+      setTimeout(() => { if (app.forced) app.done({ number: r.number, target: s.kind === 'parking' ? null : s.person }); }, 1400);
     },
   };
 
@@ -115,7 +118,7 @@
   const DEF = {
     id: 'pwpticket', name: 'Ticket book', version: '1.0.0', order: 7, statusBar: 'light',
     icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 3h12v18l-3-2-3 2-3-2-3 2z"/><path d="M9 8h6M9 12h6M9 16h3"/></svg>',
-    state: () => ({ kind: 'citation', data: null, person: null, car: null, codes: {}, q: '', notes: '', place: '', err: null, done: null, sending: false }),
+    state: () => ({ kind: 'citation', radar: null, data: null, person: null, car: null, codes: {}, q: '', notes: '', place: '', err: null, done: null, sending: false }),
     mount(app, el, view) {
       el.innerHTML = '<div class="tb-root"></div>';
       const ctx = { el, view, mem: {} };
@@ -128,10 +131,15 @@
     unmount(app) { live.delete(app); },
     async open(app, args) {
       const s = app.state;
-      Object.assign(s, DEF.state(), { place: (args && args.place) || '' });
+      Object.assign(s, DEF.state(), { place: (args && args.place) || '', radar: (args && args.radar) || null });
       draw(app);
       s.data = await ask(app, 'nearby', { people: (args && args.people) || [], cars: (args && args.cars) || [] });
       if (s.data && s.data.people.length === 1) s.person = s.data.people[0].source;
+      if (s.data && s.radar) {
+        const speeding = s.data.penal.find((c) => c.citation && /speed/i.test(c.title));
+        if (speeding) s.codes[speeding.code] = true;
+        s.notes = `Radar ${s.radar.speed} ${s.radar.unit} · ${s.radar.plate}`;
+      }
       draw(app);
     },
     back(app) { if (app.forced) { app.done({}); return true; } return false; },

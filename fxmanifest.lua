@@ -72,6 +72,7 @@ client_scripts {
     'client/feeds.lua',
     'client/impound.lua',
     'client/tickets.lua',
+    'client/tow.lua',
     'client/k9.lua',
 }
 
@@ -83,6 +84,7 @@ files {
     'html/station/app.js',
     'html/mdt/module.js',
     'html/mdt/ticket.js',
+    'html/mdt/tow.js',
     'html/mdt/livemap.js',
     'html/shared/bracket.js',
     'html/shared/fonts/*.woff2',

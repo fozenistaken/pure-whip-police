@@ -276,6 +276,35 @@ scenario('impound holds, override, garage path, lot, BOLO, haul', function()
     check('second haul inside the cooldown pays nothing', junk2.out == false and #W.paid == paidBefore + 1)
 end)
 
+scenario('tow truck job', function()
+    local car = W.car({ plate = 'TOW 1', owner = 2, coords = vector3(12, 10, 30) })
+    W.players[1].coords = vector3(10, 10, 30)
+    local pv = W.cb('pure-whip-police:mdt:impoundPreview', 1, { vehicleId = car.id })
+    check('no tow offered with no driver on duty', pv and pv.tow == false)
+    W.players[5].dept, W.players[5].coords = 'tow', vector3(13, 10, 30)
+    pv = W.cb('pure-whip-police:mdt:impoundPreview', 1, { vehicleId = car.id })
+    check('tow offered when a driver is on duty', pv and pv.tow == true)
+    local r, why = W.cb('pure-whip-police:mdt:impoundFile', 1, { spec = { vehicleId = car.id, reason = 'parking', via = 'street', tow = true } })
+    check('tow called, the car waits with its engine off', r and r.tow and car.out ~= false and W.holds[car.id .. ':tow'] ~= nil, why)
+    check('tow drivers get a map marker', r and W.blips['pwp_tow_' .. r.id] ~= nil)
+    local jobs = W.cb('pure-whip-police:tow:jobs', 5, {})
+    check('tow app lists the car', jobs and #jobs == 1 and jobs[1].plate == 'TOW 1', jobs and json.encode(jobs))
+    check('only tow drivers read the tow list', W.cb('pure-whip-police:tow:jobs', 1, {}) == false)
+    local office
+    for _, pt in pairs(W.points) do if pt.label == 'Davis Impound' then office = pt end end
+    local ok, err = office.onUse(2, { option = 'collect' })
+    check('a car on its way cannot be collected', ok == false and tostring(err):find('on its way') ~= nil, err)
+    W.progress = true
+    local before = #W.paid
+    W.event(ev('policecar'), 5, W.core.GetVehicle(nil, car.id), 'tow')
+    W.advance(Config.Tow.towSeconds * 1000 + 500)
+    check('towed into the lot', car.out == false and W.custody[car.id] == true and W.holds[car.id .. ':tow'] == nil)
+    check('tow driver paid', #W.paid == before + 1 and W.paid[#W.paid].amount == Config.Tow.pay)
+    check('tow marker gone', r and W.blips['pwp_tow_' .. r.id] == nil)
+    check('tow list empty again', #(W.cb('pure-whip-police:tow:jobs', 5, {}) or { 1 }) == 0)
+    W.players[5].dept = nil
+end)
+
 scenario('tickets, signing, contest and court ruling', function()
     W.players[1].coords, W.players[2].coords = vector3(10, 10, 30), vector3(11, 10, 30)
     local near = W.cb('pure-whip-police:ticket:nearby', 1, { people = { 2, 3 }, cars = {} })

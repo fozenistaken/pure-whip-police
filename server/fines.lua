@@ -234,7 +234,7 @@ function Fines.write(src, dept, spec)
         givePaper(target, f, 'copy')
         if f.kind ~= 'warning' then
             TriggerClientEvent(PWP.event('ticketSign'), target, { id = f.id, number = f.number, label = f.label, amount = f.amount,
-                charges = chargeTitles(codes), officer = officer, dueAt = f.dueAt })
+                charges = chargeTitles(codes), officer = officer, due = f.dueAt and os.date('%d %b', f.dueAt) or nil })
         end
     end
     mailTicket(f, officer)

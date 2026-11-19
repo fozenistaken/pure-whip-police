@@ -83,6 +83,17 @@ end
 
 local function storage() return { perDay = CFG.perDay, maxDays = CFG.maxDays } end
 
+local TOW = Config.Tow
+local function towOnDuty()
+    if type(TOW.job) ~= 'string' or TOW.job == '' then return false end
+    return #(Whip.core:GetClockedOnEmployees(TOW.job) or {}) > 0
+end
+local function towBlip(row) return 'pwp_tow_' .. row.id end
+local function towMark(vehicleId, on)
+    local v = Whip.core:GetVehicle(vehicleId)
+    if v and v.entity and DoesEntityExist(v.entity) then Entity(v.entity).state:set('pwpTow', on or nil, true) end
+end
+
 local function active(vehicleId)
     return MySQL.single.await(('SELECT * FROM `%s` WHERE `vehicleId` = ? AND `releasedAt` IS NULL ORDER BY `id` DESC LIMIT 1'):format(T.impounds),
         { tonumber(vehicleId) })
@@ -127,6 +138,7 @@ function Impound.preview(vehicleId)
         owner = owner, ownerName = owner and (Whip.core:GetCharacterNames({ owner }) or {})[owner] or nil,
         bolo = bolo and { reason = bolo.reason, stolen = bolo.stolen == 1 } or nil, times = times, impounded = active(v.id or v.vehicleId) ~= nil,
         lots = lots, reasons = reasons, maxFee = CFG.maxFee, perDay = CFG.perDay, maxDays = CFG.maxDays, maxHoldDays = CFG.maxHoldDays,
+        tow = v.entity ~= nil and towOnDuty(),
     }
 end
 
@@ -140,6 +152,8 @@ local function park(src, v, via, lotId)
     else
         if not v.entity or not DoesEntityExist(v.entity) then return false, 'The car is not out' end
         if via == 'street' and #(GetEntityCoords(v.entity) - GetEntityCoords(GetPlayerPed(src))) > 8.0 then return false, 'Stand by the car' end
+        Whip.core:ReleaseVehicleEngine(id, 'tow')
+        towMark(id, false)
         local ok, why = Whip.core:DespawnVehicle(id, { garage = garage, refuseOccupied = true })
         if not ok then return false, why end
     end
@@ -166,13 +180,30 @@ function Impound.file(src, dept, spec)
     local holdOpen = (reason.hold == 'officer' or spec.holdOpen == true) and 1 or 0
     local holdDays = holdOpen == 1 and 0 or math.max(0, math.min(CFG.maxHoldDays, math.floor(tonumber(spec.holdDays) or reason.holdDays or 0)))
     local via = spec.via == 'garage' and 'garage' or (spec.via == 'export' and 'export' or 'street')
+    local towing = spec.tow == true and via == 'street' and towOnDuty()
     if clampedRow(id) then Impound.unclamp(id, 'impounded') end
-    local ok, why = park(src, v, via, lot.id)
-    if not ok then return false, why end
+    if towing then
+        if not v.entity or not DoesEntityExist(v.entity) then return false, 'The car is not out' end
+        if #(GetEntityCoords(v.entity) - GetEntityCoords(GetPlayerPed(src))) > 8.0 then return false, 'Stand by the car' end
+        Whip.core:HoldVehicleEngine(id, 'tow', 'Waiting for the tow truck')
+        towMark(id, true)
+    else
+        local ok, why = park(src, v, via, lot.id)
+        if not ok then return false, why end
+    end
     local byChar = src and Whip.core:GetCharId(src)
-    local rowId = MySQL.insert.await(('INSERT INTO `%s` (`vehicleId`, `plate`, `model`, `ownerCharId`, `lot`, `reason`, `fee`, `notes`, `photo`, `dept`, `byCharId`, `at`, `holdUntil`, `holdOpen`, `via`) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'):format(T.impounds),
+    local rowId = MySQL.insert.await(('INSERT INTO `%s` (`vehicleId`, `plate`, `model`, `ownerCharId`, `lot`, `reason`, `fee`, `notes`, `photo`, `dept`, `byCharId`, `at`, `holdUntil`, `holdOpen`, `via`, `towState`) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'):format(T.impounds),
         { id, v.plate, v.model, owner, lot.id, reason.label, fee, PWP.Text.clean(spec.notes, 300), photo ~= '' and photo or nil, dept, byChar, now(),
-          holdDays > 0 and now() + holdDays * DAY or nil, holdOpen, via })
+          holdDays > 0 and now() + holdDays * DAY or nil, holdOpen, via, towing and 'waiting' or nil })
+    if towing then
+        local c = GetEntityCoords(v.entity)
+        Whip.core:ShowBlip({ job = TOW.job, onDuty = true }, towBlip({ id = rowId }), { coords = c, label = 'Tow: ' .. (v.plate or 'car'), sprite = 68, color = 47 })
+        for _, e in ipairs(Whip.core:GetClockedOnEmployees(TOW.job) or {}) do
+            if GetResourceState('whip_phone') == 'started' then
+                exports.whip_phone:Notify(e.source, { app = 'pwptow', title = 'Tow job', text = ('%s to %s'):format(v.plate or 'A car', lot.label), kind = 'command' })
+            end
+        end
+    end
     local bolo = v.plate and PWP.Records.boloForPlate(v.plate)
     if bolo then PWP.Records.closeBolo(bolo.id, src) end
     local row = decorate(rowById(rowId))
@@ -181,7 +212,48 @@ function Impound.file(src, dept, spec)
             :format(v.plate or '', lot.label, reason.label, money(fee), money(CFG.perDay), money(row.bill.most), holdWords(row)))
     if src then Whip.core:LogActivity(src, 'impounded', { detail = ('%s (%s)'):format(v.plate or '?', reason.label) }) end
     TriggerEvent(PWP.event('impounded'), { vehicleId = id, plate = v.plate, owner = owner, by = src, impoundId = rowId, bolo = bolo and bolo.id or nil })
-    return { id = rowId, plate = v.plate, bolo = bolo ~= nil }
+    return { id = rowId, plate = v.plate, bolo = bolo ~= nil, tow = towing or nil }
+end
+
+local function finishTow(src, v, row, byTow)
+    local ok, why = park(src, v, 'tow', row.lot)
+    if not ok then return false, why end
+    MySQL.update.await(('UPDATE `%s` SET `towState` = \'done\', `towBy` = ? WHERE `id` = ?'):format(T.impounds),
+        { byTow and Whip.core:GetCharId(src) or nil, row.id })
+    Whip.core:HideBlip(towBlip(row))
+    return true
+end
+
+function Impound.towJobs()
+    local rows = MySQL.query.await(('SELECT `id`, `vehicleId`, `plate`, `model`, `lot`, `reason`, `at` FROM `%s` WHERE `towState` = \'waiting\' AND `releasedAt` IS NULL ORDER BY `at`'):format(T.impounds)) or {}
+    for _, r in ipairs(rows) do
+        r.lotLabel = lotOf(r.lot).label
+        local v = Whip.core:GetVehicle(r.vehicleId)
+        local c = v and v.entity and DoesEntityExist(v.entity) and GetEntityCoords(v.entity)
+        if c then r.x, r.y = math.floor(c.x + 0.5), math.floor(c.y + 0.5) end
+    end
+    return rows
+end
+
+function Impound.towIt(src, veh)
+    if not Whip.core:IsPlayerClockedOn(src, TOW.job) then return false, 'Go on duty as a tow driver' end
+    local id = veh.id or veh.vehicleId
+    local row = active(id)
+    if not row or row.towState ~= 'waiting' then return false, 'Nobody asked for this car to be towed' end
+    local player = Whip.core:GetPlayer(src)
+    CreateThread(function()
+        local done = Whip.core:Progress(src, { label = 'Hooking up the car...', duration = TOW.towSeconds * 1000, near = { vehicle = id, range = 6.0 } })
+        if not done or not Whip.core:IsSessionCurrent(src, player.session) then return end
+        local v = Whip.core:GetVehicle(id)
+        local fresh = active(id)
+        if not v or not fresh or fresh.towState ~= 'waiting' then return end
+        local ok, why = finishTow(src, v, fresh, true)
+        if not ok then return Whip.core:NotifyPlayer(src, why, 'error') end
+        if TOW.pay > 0 then Whip.core:PayPlayer(src, TOW.pay, { reason = 'Tow to ' .. lotOf(fresh.lot).label }) end
+        Whip.core:LogActivity(src, 'towed_to_lot', { detail = fresh.plate })
+        Whip.core:NotifyPlayer(src, ('%s is at %s%s'):format(fresh.plate or 'The car', lotOf(fresh.lot).label, TOW.pay > 0 and (': ' .. money(TOW.pay) .. ' paid') or ''), 'success')
+    end)
+    return true
 end
 
 local function shiftOf(src)
@@ -289,6 +361,7 @@ local function collect(src, lotId)
     local row = charId and MySQL.single.await(('SELECT * FROM `%s` WHERE `ownerCharId` = ? AND `lot` = ? AND `releasedAt` IS NULL ORDER BY `at` LIMIT 1'):format(T.impounds),
         { charId, lotId })
     if not row then return false, 'Nothing of yours is held here' end
+    if row.towState == 'waiting' then return false, 'It is still on its way to the lot' end
     local held, untilAt = TL.held(row, now())
     if held then return false, untilAt and ('It is held until %s'):format(os.date('%d %b %H:%M', untilAt)) or 'It is held until the police release it' end
     local player = Whip.core:GetPlayer(src)
@@ -423,10 +496,20 @@ Whip.register(function()
         `holdUntil` INT UNSIGNED NULL, `holdOpen` TINYINT(1) NOT NULL DEFAULT 0, `override` TINYINT(1) NOT NULL DEFAULT 0,
         `liftedBy` INT UNSIGNED NULL, `liftNote` VARCHAR(200) NULL, `paidAt` INT UNSIGNED NULL, `paidAmount` INT UNSIGNED NULL,
         `releasedAt` INT UNSIGNED NULL, `releasedBy` INT UNSIGNED NULL, `releaseNote` VARCHAR(200) NULL,
+        `towState` VARCHAR(8) NULL, `towBy` INT UNSIGNED NULL,
         INDEX (`vehicleId`, `releasedAt`), INDEX (`ownerCharId`, `releasedAt`), INDEX (`lot`, `releasedAt`)
-        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4]]):format(T.impounds))
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4]]):format(T.impounds), {
+        { id = 'impounds_tow', statements = {
+            { sql = ('ALTER TABLE `%s` ADD COLUMN `towState` VARCHAR(8) NULL'):format(T.impounds), unless = { column = { T.impounds, 'towState' } } },
+            { sql = ('ALTER TABLE `%s` ADD COLUMN `towBy` INT UNSIGNED NULL'):format(T.impounds), unless = { column = { T.impounds, 'towBy' } } },
+        } },
+    })
     if not ok then print(('[%s] table %s could not be made'):format(PWP.RES, T.impounds)) end
     adoptLegacy()
+    for _, row in ipairs(MySQL.query.await(('SELECT `id`, `vehicleId`, `plate` FROM `%s` WHERE `towState` = \'waiting\' AND `releasedAt` IS NULL'):format(T.impounds)) or {}) do
+        Whip.core:HoldVehicleEngine(row.vehicleId, 'tow', 'Waiting for the tow truck')
+        towMark(row.vehicleId, true)
+    end
 
     Whip.core:RegisterItem(CLAMP, { name = 'Wheel Clamp', desc = 'Locks a wheel. The owner pays a fine to have it removed.',
         weight = 4.0, type = 'tool', stack = true, maxStack = 4, prop = 'pwp_wheel_clamp' })
@@ -453,10 +536,15 @@ Whip.register(function()
 
     Whip.core:SecureEvent(PWP.event('policecar'), {
         rateLimit = 1500,
-        params = { { 'veh', 'vehicle', { anyOwner = true, session = true } }, { 'how', 'enum', { 'clamp', 'unclamp', 'impound', 'cut' } } },
+        params = { { 'veh', 'vehicle', { anyOwner = true, session = true } }, { 'how', 'enum', { 'clamp', 'unclamp', 'impound', 'cut', 'tow' } } },
         near = { at = 'vehicle', range = 6.0 },
     }, function(source, _, veh, how)
         if how == 'cut' then return cut(source, veh) end
+        if how == 'tow' then
+            local ok3, why3 = Impound.towIt(source, veh)
+            if not ok3 then return false, why3 end
+            return
+        end
         local ok2, dept = PWP.Depts.can(source, 'fine')
         if not ok2 then return false, dept end
         if how == 'clamp' then
@@ -474,12 +562,37 @@ Whip.register(function()
             if not done then return false, paid end
             return Whip.core:NotifyPlayer(source, paid and ('Hauled away: %s paid'):format(money(CFG.haul.pay)) or 'Hauled away', 'success')
         end
+        local waiting = active(veh.id or veh.vehicleId)
+        if waiting and waiting.towState == 'waiting' then
+            local done, err = finishTow(source, veh, waiting, false)
+            if not done then return false, err end
+            return Whip.core:NotifyPlayer(source, 'Impounded ' .. (veh.plate or '') .. ' without the tow truck', 'success')
+        end
         local form, why = Impound.preview(veh.id or veh.vehicleId)
         if not form then return false, why end
         if form.impounded then return false, 'It is impounded already' end
         form.via = 'street'
         TriggerClientEvent(PWP.event('impoundForm'), source, form)
     end)
+end)
+
+Whip.register(function()
+    for action, fn in pairs({
+        jobs = function() return Impound.towJobs() end,
+        waypoint = function(source, a)
+            local x, y = tonumber(a.x), tonumber(a.y)
+            if not x or not y then return false, 'That car is not out' end
+            return Whip.core:SetPlayerWaypoint(source, vector3(x + 0.0, y + 0.0, 0.0))
+        end,
+    }) do
+        Whip.core:SecureCallback(PWP.RES .. ':tow:' .. action, { rateLimit = 500, params = { { 'args', 'any' } } }, function(source, _, args)
+            if not Whip.core:IsPlayerClockedOn(source, TOW.job) then return false, 'Go on duty as a tow driver' end
+            local ok, result, why = pcall(fn, source, type(args) == 'table' and args or {})
+            if not ok then print(('[%s] tow %s: %s'):format(PWP.RES, action, tostring(result))) return false, 'Something went wrong' end
+            if result == false then return false, why end
+            return result
+        end)
+    end
 end)
 
 exports('Impound', function(vehicleId, opts)

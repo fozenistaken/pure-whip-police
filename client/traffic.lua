@@ -83,6 +83,10 @@ RegisterKeyMapping('pwp_radar', 'Police: radar on or off', 'keyboard', '')
 RegisterCommand('pwp_radarlock', function()
     if not on then return end
     locked = not locked
+    local r = shown.front or shown.rear
+    if locked and r and r.plate ~= '' then
+        PWP.RadarLock = { plate = r.plate, speed = r.speed, unit = PWP.Radar.unitName(RAD.unit), at = GetGameTimer() }
+    end
     draw()
 end, false)
 RegisterKeyMapping('pwp_radarlock', 'Police: lock the radar reading', 'keyboard', '')

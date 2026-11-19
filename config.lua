@@ -245,14 +245,21 @@ Config.Impound = {
     haul = { pay = 150, cooldownSeconds = 90, perShift = 8 },
 }
 
+-- Tow trucks. job: the WHIP job key of tow drivers (made in /whip -> Jobs; this resource creates no job), or nil to
+-- impound every street car at once. When a tow driver is on duty the impound form offers "Send a tow truck": the car
+-- waits with its engine off, tow drivers see it on the map and in the Tow app, and tow it in at the car. pay: $ per
+-- tow, 0-5000. towSeconds: hooking up the car, 2-60. Example: Config.Tow = { job = 'mechanic', pay = 400, towSeconds = 10 }
+Config.Tow = { job = 'tow', pay = 250, towSeconds = 8 }
+
 -- Tickets written at the roadside (/ticket, or the Ticket book on the F1 wheel). dueDays: days to pay, 1-60.
 -- contestDays: days the court has to rule on a contest before it lapses in the citizen's favour, 1-60.
 -- personMetres / vehicleMetres: how near a person (2-15) or a car (3-30) must be to be picked. maxAmount: the most
--- one ticket can be, $ 1-1000000. cooldownSeconds: between two tickets from one officer, 0-300.
+-- one ticket can be, $ 1-1000000. cooldownSeconds: between two tickets from one officer, 0-300. writeSeconds: the
+-- officer writes it on a notepad, then hands it over (the person takes it, then signs), 0-15; 0 skips both.
 -- overdue: an unpaid ticket past its date becomes a warrant; dollarsPerMonth: $ per month of the warrant, 1-100000;
 -- minMonths / maxMonths: 1-120. Example: Config.Tickets = { dueDays = 5, contestDays = 3, ..., overdue = { enabled = false } }
 Config.Tickets = {
-    dueDays = 7, contestDays = 5, personMetres = 5.0, vehicleMetres = 10.0, maxAmount = 25000, cooldownSeconds = 15,
+    dueDays = 7, contestDays = 5, personMetres = 5.0, vehicleMetres = 10.0, maxAmount = 25000, cooldownSeconds = 15, writeSeconds = 4,
     overdue = { enabled = true, dollarsPerMonth = 500, minMonths = 1, maxMonths = 10 },
 }
 
