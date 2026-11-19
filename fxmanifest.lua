@@ -38,6 +38,7 @@ server_scripts {
     'data/penal_code.lua',
     'server/records.lua',
     'server/permits.lua',
+    'server/mugshots.lua',
     'server/fines.lua',
     'server/front.lua',
     'server/prison.lua',
@@ -74,6 +75,7 @@ client_scripts {
     'client/impound.lua',
     'client/tickets.lua',
     'client/tow.lua',
+    'client/mugshot.lua',
     'client/k9.lua',
 }
 

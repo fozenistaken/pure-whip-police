@@ -333,6 +333,27 @@ scenario('tags, licences, warrant requests and report vehicles', function()
     check('report search finds plate, name and body', has(byPlate) and has(byName) and has(byBody))
 end)
 
+scenario('mugshot', function()
+    W.players[1].coords, W.players[2].coords = vector3(10, 10, 30), vector3(11, 10, 30)
+    check('no mugshot of someone not cuffed', W.cb('pure-whip-police:mdt:mugshot', 1, { charId = 2 }) == false)
+    PWP.Contact.cuff(1, 2, 'hard')
+    local sent = #W.client
+    local r = W.cb('pure-whip-police:mdt:mugshot', 1, { charId = 2 })
+    PWP.Contact.uncuff(1, 2)
+    local ask
+    for i = sent + 1, #W.client do if W.client[i].name == ev('mugshotTake') then ask = W.client[i] end end
+    check('the officer camera is asked for', r and r.pending and ask and ask.args[1] == 2)
+    local token = ask and ask.args[2]
+    local img = 'data:image/webp;base64,' .. ('B'):rep(70000)
+    W.event(ev('mugshotPart'), 1, 'wrong', 1, 2, img:sub(1, 48000))
+    W.event(ev('mugshotPart'), 1, token, 2, 2, img:sub(48001))
+    W.event(ev('mugshotPart'), 1, token, 1, 2, img:sub(1, 48000))
+    local p = W.cb('pure-whip-police:mdt:person', 1, { charId = 2 })
+    check('the record has a mugshot', p and p.mugshot == true)
+    local m = W.cb('pure-whip-police:mdt:mugshotImage', 1, { charId = 2 })
+    check('parts in any order make the picture', m and m.image == img)
+end)
+
 scenario('tow truck job', function()
     local car = W.car({ plate = 'TOW 1', owner = 2, coords = vector3(12, 10, 30) })
     W.players[1].coords = vector3(10, 10, 30)

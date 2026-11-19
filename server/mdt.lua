@@ -72,6 +72,7 @@ function H.person(_, _, a)
     local rec = R.getRecord(charId) or {}
     row.warrants, row.reports, row.notes, row.fines, row.sentence = rec.warrants, rec.reports, rec.notes, rec.fines, rec.sentence
     row.tags, row.licences = rec.tags or {}, PWP.Permits.list(charId)
+    row.mugshot = PWP.Mugshots.has(charId)
     decorate(row.notes or {}, 'authorCharId', 'author')
     row.vehicles = MySQL.query.await('SELECT `vehicleId`, `model`, `plate`, `state` FROM `vehicles` WHERE `ownerCharId` = ? LIMIT 20', { charId }) or {}
     row.online = sourceOf(charId) ~= nil
@@ -159,6 +160,8 @@ H.issueWarrant = { perm = 'warrants', fn = function(src, dept, a)
     return { id = id, requested = judge or nil }
 end }
 
+H.mugshot = { perm = 'records', fn = function(src, _, a) return PWP.Mugshots.ask(src, num(a.charId)) end }
+function H.mugshotImage(_, _, a) return { image = PWP.Mugshots.image(num(a.charId)) } end
 H.setTag = { perm = 'records', fn = function(src, _, a) return R.setTag(num(a.charId), a.tag, a.on == true, src) end }
 H.licence = { perm = 'records', fn = function(src, dept, a)
     if a.act ~= 'suspend' then

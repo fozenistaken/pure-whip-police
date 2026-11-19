@@ -55,6 +55,23 @@ The default points sit in GTA's own interiors. Mission Row uses GTA's `v_policeh
 - **Lot view:** Records home (empty search) shows every held car with what is owed.
 - **Ownerless cars** are hauled away for a small payout (`Config.Impound.haul`: cooldown and per-shift cap). Spawned session cars and plates hauled before pay nothing.
 
+### Tow trucks
+
+With a driver of `Config.Tow.job` on duty, the impound form offers "Send a tow truck". The car waits with its engine off, drivers see a map marker and the Tow phone app (list and waypoints), tow it in at the driver door (`towSeconds`) and are paid `Config.Tow.pay`. The officer can still finish the impound themselves. With no driver on duty the car goes at once, as before.
+
+### Dispatch calls
+
+Calls have a priority (P0 critical for panic, P1 high, P2 normal, P3 low). A report of the same code close by (`mergeMetres`, `mergeSeconds`) joins the open call instead of making a new one. Closing asks for an outcome (resolved, report written, arrest, unfounded, no contact, gone on arrival) and a note; the Dispatch → History view lists closed calls, kept `keepDays`.
+
+### Records
+
+- **Tags** (`Config.Records.tags`) on a person's record and in search results.
+- **Citizen licences** (`Config.CitizenLicences`): officers suspend them for some days with a reason; command issues, revokes and reinstates them. Holders get letters. Other scripts use `GrantCitizenLicence`, `GetCitizenLicences`, `HasValidLicence`.
+- **Warrants signed by a judge:** with `Config.Warrants.judge = 'auto'` and the courts running, an officer's warrant is a request; a judge signs or denies it on the Desk tab of the Court app.
+- **Reports:** templates (`Config.ReportTemplates`), vehicles (plates) on a report, and search by title, text, plate or person name.
+- **Mugshots:** MDT → a cuffed person beside you → Mugshot. The picture is the record's photo (`GetMugshot` export).
+- **Radar in the ticket book:** a reading locked within 10 minutes ticks Speeding, fills the note and warns when that car is not near.
+
 ## Swapping parts
 
 Under `Config.Providers` in `config.lua` and on the settings page:

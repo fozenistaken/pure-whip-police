@@ -144,6 +144,8 @@
 .mdt-pickrow.on{border-color:var(--accent);outline:1px solid var(--accent)}
 .mdt-warn{display:flex;flex-wrap:wrap;gap:.375rem}
 .mdt-cp{cursor:copy;border:0;font:inherit}
+.mdt-ava.pic{padding:0;overflow:hidden;background:var(--panel2)}
+.mdt-ava.pic img{width:100%;height:100%;object-fit:cover;display:block}
 .mdt-cp:hover{outline:1px solid var(--accent);outline-offset:.0625rem}
 button.pwp-code.mdt-cp{background:none;padding:0;text-align:left}
 .pwp-row.mdt-wrap{flex-wrap:wrap}
@@ -431,13 +433,14 @@ button.pwp-code.mdt-cp{background:none;padding:0;text-align:left}
       const canCharge = pm.fine || pm.jail;
       const acts = [
         pm.records ? `<button class="pwp-btn mdt-side-act pwp-press" data-act="openSheet" data-k="note" aria-label="Note">${B.icons.note}<span class="mdt-at">Note</span></button>` : '',
+        pm.records && p.online ? `<button class="pwp-btn mdt-side-act pwp-press" data-act="mugshot" aria-label="Mugshot">${B.icons.camera || B.icons.badge}<span class="mdt-at">Mugshot</span></button>` : '',
         pm.records ? `<button class="pwp-btn mdt-side-act pwp-press" data-act="openSheet" data-k="tags" aria-label="Tags">${B.icons.pin}<span class="mdt-at">Tags</span></button>` : '',
         pm.records ? `<button class="pwp-btn mdt-side-act pwp-press" data-act="openSheet" data-k="bolo" aria-label="BOLO">${B.icons.wanted}<span class="mdt-at">BOLO</span></button>` : '',
         pm.warrants ? `<button class="pwp-btn mdt-side-act pwp-press" data-act="openSheet" data-k="warrant" aria-label="Warrant">${B.icons.command}<span class="mdt-at">Warrant</span></button>` : '',
         canCharge ? `<button class="pwp-cta has-kbd pwp-press" data-act="openSheet" data-k="charge">${B.icons.gavel}Charge<span class="pwp-kbd">C</span></button>` : '',
       ].join('');
       return {
-        body: `<div class="mdt-rec"><div class="mdt-ava">${B.esc(initials(p))}</div><div class="mdt-name"><h1>${B.esc(p.firstName)} ${B.esc(p.lastName)}</h1><p class="mono"><button class="pwp-code mdt-cp" data-act="copy" data-v="${p.charId}" title="Copy">ID ${p.charId}</button> · born ${B.esc(day(p.dateOfBirth))} · ${B.esc(p.gender)}</p>${flags ? `<div class="mdt-flags">${flags}</div>` : ''}</div>
+        body: `<div class="mdt-rec">${(s.mugs || {})[p.charId] ? `<div class="mdt-ava pic"><img src="${B.esc(s.mugs[p.charId])}" alt="Mugshot of ${B.esc(p.firstName)}"></div>` : `<div class="mdt-ava">${B.esc(initials(p))}</div>`}<div class="mdt-name"><h1>${B.esc(p.firstName)} ${B.esc(p.lastName)}</h1><p class="mono"><button class="pwp-code mdt-cp" data-act="copy" data-v="${p.charId}" title="Copy">ID ${p.charId}</button> · born ${B.esc(day(p.dateOfBirth))} · ${B.esc(p.gender)}</p>${flags ? `<div class="mdt-flags">${flags}</div>` : ''}</div>
           <button class="pwp-btn ghost icon pwp-press" data-act="closePerson" aria-label="Close record">${B.icons.x}</button></div>
           <div class="mdt-tabs" role="tablist" data-glide="rtab">${RTABS.map(([id, label]) => `<button class="${s.rtab === id ? 'on' : ''}" role="tab" aria-selected="${s.rtab === id}" data-act="rtab" data-t="${id}">${label}</button>`).join('')}</div>
           ${scroll(`<div class="${s.fadeTab ? 'pwp-fade' : ''}" style="display:grid;gap:.75rem">${tab[s.rtab]()}</div>`, 'person-' + s.rtab)}`,
@@ -808,7 +811,8 @@ button.pwp-code.mdt-cp{background:none;padding:0;text-align:left}
     s.f.impLot = ((form.lots || [])[0] || {}).id;
     s.sheet = { kind: 'impound' };
   };
-  const reloadPerson = (app, id) => ask(app, 'person', { charId: id }, (r) => { app.state.person = r; });
+  const loadMug = (app, id) => ask(app, 'mugshotImage', { charId: id }, (r) => { const s = app.state; s.mugs = s.mugs || {}; if (r && r.image) s.mugs[id] = r.image; }, true).then(() => draw(app));
+  const reloadPerson = (app, id) => ask(app, 'person', { charId: id }, (r) => { app.state.person = r; if (r && r.mugshot && !(app.state.mugs || {})[id]) loadMug(app, id); });
 
   const actions = {
     dismissErr(app) { app.state.err = null; },
@@ -831,6 +835,7 @@ button.pwp-code.mdt-cp{background:none;padding:0;text-align:left}
       await ask(app, 'clearCall', { id, outcome, note }, () => load(app));
     },
     pickOutcome(app, d) { app.state.f.outcome = d.v; },
+    async mugshot(app) { const p = app.state.person; await ask(app, 'mugshot', { charId: p.charId }, () => app.toast('Hold still...')); },
     async toggleTag(app, d) {
       const s = app.state; const p = s.person; const tags = new Set(p.tags || []); const on = !tags.has(d.v);
       if (on) tags.add(d.v); else tags.delete(d.v);
@@ -1253,6 +1258,7 @@ button.pwp-code.mdt-cp{background:none;padding:0;text-align:left}
     },
     on: {
       alert(app, a) { const s = app.state; s.calls = [a].concat((s.calls || []).filter((c) => c.id !== a.id)); draw(app); },
+      mugshot(app, d) { const s = app.state; if (s.mugs) delete s.mugs[d.charId]; if (s.person && s.person.charId === d.charId) loadMug(app, d.charId); },
       board(app, d) { const s = app.state; if (s.board && s.board.id === d.id) Promise.all([reloadBoard(app), s.bview === 'locker' ? loadEv(app) : null]).then(() => draw(app)); },
       alertCleared(app, d) { const s = app.state; s.calls = (s.calls || []).filter((c) => c.id !== d.id); if (s.pick === d.id) s.pick = null; draw(app); },
     },
