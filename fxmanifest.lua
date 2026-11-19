@@ -39,6 +39,8 @@ server_scripts {
     'server/records.lua',
     'server/permits.lua',
     'server/mugshots.lua',
+    'server/weapons.lua',
+    'server/command.lua',
     'server/fines.lua',
     'server/front.lua',
     'server/prison.lua',

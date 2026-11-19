@@ -65,11 +65,13 @@ local function bind(sql, args)
     return (sql:gsub('%?', function() i = i + 1 return lit(args[i]) end))
 end
 
+local UNESCAPE = { n = '\n', t = '\t', ['\\'] = '\\', ['0'] = '\0' }
+
 local function run(sql, noUse)
     local f = assert(io.open(TMP, 'wb'))
     f:write((noUse and '' or ('USE `' .. W.dbName .. '`;\n')) .. sql .. '\n')
     f:close()
-    local cmd = ('""%s" %s --batch --raw --default-character-set=utf8mb4 < "%s" 2>&1"'):format(MYSQL, DB, TMP)
+    local cmd = ('""%s" %s --batch --default-character-set=utf8mb4 < "%s" 2>&1"'):format(MYSQL, DB, TMP)
     local p = assert(io.popen(cmd, 'r'))
     local out = p:read('a')
     p:close()
@@ -84,7 +86,10 @@ local function run(sql, noUse)
         local row, n = {}, 0
         for v in (lines[i] .. '\t'):gmatch('([^\t]*)\t') do
             n = n + 1
-            if v ~= 'NULL' then row[cols[n]] = (v:match('^%-?%d+%.?%d*$') and tonumber(v)) or v end
+            if v ~= 'NULL' then
+                v = v:gsub('\\(.)', UNESCAPE)
+                row[cols[n]] = (v:match('^%-?%d+%.?%d*$') and tonumber(v)) or v
+            end
         end
         rows[#rows + 1] = row
     end
@@ -333,6 +338,11 @@ function core.RegisterContextAction(_, key, fn) W.actions[key] = fn return true 
 function core.RegisterUseHandler(_, key, fn) W.uses[key] = fn return true end
 function core.SecureEvent(_, name, schema, fn) W.secure[name] = { schema = schema, fn = fn, res = W.res } return true end
 function core.SecureCallback(_, name, schema, fn) W.callbacks[name] = { schema = schema, fn = fn, res = W.res } return true end
+function core.FindAllItems(_, src, item)
+    local o = {}
+    for slot, s in pairs(inv(src)) do if s.item == item then o[#o + 1] = { slot = slot, amount = s.amount, metadata = s.metadata } end end
+    return o
+end
 function core.HasItem(_, src, item) for _, s in pairs(inv(src)) do if s.item == item then return true end end return false end
 function core.AddItem(_, src, item, n, meta) local st = inv(src) st[nextSlot(st)] = { item = item, amount = n or 1, metadata = copy(meta) } return 'inventory' end
 function core.RemoveItem(_, src, item, n)
@@ -377,7 +387,14 @@ function core.GetPlayerRole(_, src, job) local p = W.players[src] if p and p.job
 function core.HasJobPermission(_, src, job, perm) local p = W.players[src] if p and p.jobs and p.jobs[job] and p.perms[perm] then return true end return false, 'no permission' end
 function core.IsPlayerClockedOn(_, src, job) local p = W.players[src] return p and p.dept == job or false end
 function core.GetClockedOnEmployees(_, job) local o = {} for src, p in pairs(W.players) do if p.dept == job then o[#o + 1] = { source = src, charId = p.charId } end end return o end
-function core.GetJobEmployees(_, job) local o = {} for _, p in pairs(W.players) do if p.jobs and p.jobs[job] then o[p.charId] = { charId = p.charId, onDuty = p.dept == job } end end return o end
+function core.GetJobEmployees(_, job)
+    local o = {}
+    for src, p in pairs(W.players) do
+        local j = p.jobs and p.jobs[job]
+        if j then o[p.charId] = { charId = p.charId, roleName = j.name, roleLevel = j.level, hiredAt = 0, onDuty = p.dept == job, source = src } end
+    end
+    return o
+end
 function core.GetItemDef(_, key) return W.items[key] or { name = key } end
 function core.GetItemDefs() return W.items end
 local function vref(ref)

@@ -63,6 +63,10 @@ With a driver of `Config.Tow.job` on duty, the impound form offers "Send a tow t
 
 Calls have a priority (P0 critical for panic, P1 high, P2 normal, P3 low). A report of the same code close by (`mergeMetres`, `mergeSeconds`) joins the open call instead of making a new one. Closing asks for an outcome (resolved, report written, arrest, unfounded, no contact, gone on arrival) and a note; the Dispatch → History view lists closed calls, kept `keepDays`.
 
+Calls also come in on their own: a lockpicked car raises a 10-60 break-in (`theftChance`, never for police), an explosion a 10-80 (`explosions`). One call per 150 m spot until `shotsCooldown` runs out.
+
+The live map draws a line from each responding unit to its call (solid once on scene), shows unit speed, and pins active plate BOLOs where the plate was last seen.
+
 ### Records
 
 - **Tags** (`Config.Records.tags`) on a person's record and in search results.
@@ -70,7 +74,18 @@ Calls have a priority (P0 critical for panic, P1 high, P2 normal, P3 low). A rep
 - **Warrants signed by a judge:** with `Config.Warrants.judge = 'auto'` and the courts running, an officer's warrant is a request; a judge signs or denies it on the Desk tab of the Court app.
 - **Reports:** templates (`Config.ReportTemplates`), vehicles (plates) on a report, and search by title, text, plate or person name.
 - **Mugshots:** MDT → a cuffed person beside you → Mugshot. The picture is the record's photo (`GetMugshot` export).
+- **Weapons registry:** a gun bought in a WHIP shop is registered to the buyer (`Config.Weapons.autoRegister`). Search a serial to see the owner and its history; officers mark it stolen, seized or destroyed. A person's Vehicles tab lists their guns. Other scripts use `RegisterWeapon`, `GetWeapon`, `SetWeaponStatus`.
+- **Permit applications:** citizens apply in the Court app (`Config.Permits.apply`); command approves (the licence is issued) or denies with a reason (a letter).
 - **Radar in the ticket book:** a reading locked within 10 minutes ticks Speeding, fills the note and warns when that car is not near.
+
+### Command
+
+- **Roster:** everyone hired, on duty first, with call sign and hours on duty this week. A row opens the officer's profile: hours over 7 and 30 days, reports, tickets, arrests, impounds, calls closed, sustained complaints and awards. Your own call sign in the top bar opens your profile.
+- **Notices:** command posts a notice (urgent or not, ends after a day) at the top of the Dispatch board; officers on duty get it on the phone.
+- **Awards** (`Config.Awards`): given from an officer's profile; the officer gets a letter.
+- **Complaints:** citizens file them in the Court app (3 a day); command records a finding (sustained, not sustained, unfounded, closed) and the citizen gets a letter.
+- **Department rules:** command writes them; each officer reads and signs them from their profile. Publishing a new version asks everyone to sign again; command sees how many signed.
+- **Investigations:** the File view lists the officers on the case (put on from the units on duty; they are told) and a case log of notes.
 
 ## Swapping parts
 
@@ -120,6 +135,9 @@ Every export returns a result, or `false, why`.
 | `Impound(vehicleId, { by?, dept?, reason? })` / `ReleaseImpound(vehicleId)` / `IsClamped(vehicleId)` | `true, 'impounded'│'towed'` / `true` / boolean |
 | `GetAcademyResult(charId, dept)` | `{ right, total, passed, at }` |
 | `GetForensicCodes(charId)` / `FindCodeOwner(code)` | `{ dna, print }` / charId (only after their samples were taken) |
+| `RegisterWeapon(serial, item, charId, note?)` / `GetWeapon(serial)` / `SetWeaponStatus(serial, status, note?)` | `true` / `{ serial, item, owner, status, history }` or nil / `true` |
+| `ApplyForPermit(src, kind, reason)` / `GetMyPermitApps(charId)` / `GetPermitKinds()` | `{ id }` / list / `{ kind, label }[]` |
+| `FileComplaint(src, officer, text)` | `{ id }` |
 
 ## Events (server)
 
@@ -152,7 +170,7 @@ CCTV and body cams. Run it from the folder holding both resources:
     set PWP_HARNESS_DB=-uroot -p<password> -P3307 -h127.0.0.1
     lua pure-whip-police/tests/harness/run.lua <path to pure-whip-police> <path to pure-whip-courts>
 
-Any WHIP call the simulation does not know is reported as missing, so a misspelt export fails the run.
+Any WHIP call the simulation does not know is reported as missing, so a misspelt export fails the run. A full run takes about 7 minutes (every query starts a `mysql` client); set `PWP_TRACE=1` to print each scenario as it starts.
 
 `tests/harness/client.lua` runs the client code the same way, with the natives and the WHIP client exports simulated:
 the radar and plate reads, K9 commands, clamps on cars, the camera viewer and body cams, impact and injury reports.

@@ -8,6 +8,7 @@ local function check(name, cond, detail)
     if cond then pass = pass + 1 else fail = fail + 1; W.realPrint('FAIL ' .. name .. (detail and (': ' .. tostring(detail)) or '')) end
 end
 local function scenario(name, fn)
+    if os.getenv('PWP_TRACE') then W.realPrint('>> ' .. name) io.stdout:flush() end
     local ok, err = xpcall(fn, debug.traceback)
     if not ok then fail = fail + 1; W.realPrint('CRASH ' .. name .. ': ' .. tostring(err)) end
     if W.errors and #W.errors > 0 then
@@ -713,6 +714,158 @@ scenario('whip_evidence bridge', function()
     W.cb('pure-whip-police:mdt:boardStatus', 1, { id = id, status = 'open' })
     check('reopening reopens the locker', fake.closed[tostring(id)] == nil)
     W.started.whip_evidence = nil
+end)
+
+scenario('weapons registry', function()
+    W.items.gunny_carbine = { name = 'Carbine', type = 'weapon' }
+    W.players[5].items = {}
+    W.core.AddItem(nil, 5, 'gunny_carbine', 1, { serial = 'cb-777', attachments = {} })
+    W.fire('whip_core:shop:purchased', 'whip_core', nil, { source = 5, charId = 5, items = { { itemKey = 'gunny_carbine', amount = 1, price = 900 } } })
+    local w = W.cb(ev('mdt:weapon'), 1, { serial = 'CB-777' })
+    check('a bought gun is registered to the buyer', w and w.weapon and w.weapon.ownerCharId == 5 and w.weapon.owner == 'Lena Ortiz', w and json.encode(w))
+    W.fire('whip_core:shop:purchased', 'whip_core', nil, { source = 5, charId = 5, items = { { itemKey = 'gunny_carbine', amount = 1, price = 900 } } })
+    check('buying again does not register twice', count("SELECT COUNT(*) FROM pure_whip_police_weapon_history WHERE serial = 'CB-777'") == 1)
+    W.fire('whip_core:shop:purchased', 'pure-whip-police', nil, { source = 5, charId = 5, items = {} })
+    check('a fake purchase event from another resource is ignored', true)
+    local p = W.cb(ev('mdt:person'), 1, { charId = 5 })
+    check('the person record lists the gun', p and p.weapons and #p.weapons == 1 and p.weapons[1].name == 'Carbine', p and json.encode(p.weapons))
+    local ok, why = W.cb(ev('mdt:weaponStatus'), 6, { serial = 'cb-777', status = 'stolen', note = 'Reported at the desk' })
+    check('an officer marks it stolen', ok == true, why)
+    check('marking the same status again is fine', W.cb(ev('mdt:weaponStatus'), 6, { serial = 'cb-777', status = 'stolen' }) == true)
+    check('a bad status is refused', W.cb(ev('mdt:weaponStatus'), 6, { serial = 'cb-777', status = 'lost' }) == false)
+    check('an unknown serial is refused', W.cb(ev('mdt:weaponStatus'), 6, { serial = 'NOPE1', status = 'seized' }) == false)
+    check('a citizen cannot change it', W.cb(ev('mdt:weaponStatus'), 5, { serial = 'cb-777', status = 'registered' }) == false)
+    w = W.cb(ev('mdt:weapon'), 1, { serial = 'cb-777' }).weapon
+    check('history shows who marked it', w.status == 'stolen' and w.history[1].event == 'stolen' and w.history[1].by == 'Cody Park', json.encode(w.history))
+    check('a too long serial finds nothing', W.cb(ev('mdt:weapon'), 1, { serial = ('A'):rep(40) }).weapon == nil)
+    local okx = exports[P]:RegisterWeapon('cb-777', 'gunny_carbine', 2, 'Sold on')
+    check('an export transfers it', okx == true and exports[P]:GetWeapon('CB-777').ownerCharId == 2)
+    check('the transfer is in the history', count("SELECT COUNT(*) FROM pure_whip_police_weapon_history WHERE serial = 'CB-777' AND event = 'transferred'") == 1)
+end)
+
+scenario('roster, duty hours, notices, awards', function()
+    W.sql('DELETE FROM pure_whip_police_duty WHERE charId = 6')
+    W.fire(ev('dutyChanged'), P, nil, { source = 6, charId = 6, dept = 'lspd', onDuty = true })
+    W.clockSec = W.clockSec + 5400
+    W.fire(ev('dutyChanged'), P, nil, { source = 6, charId = 6, dept = 'lspd', onDuty = false })
+    local roster = W.cb(ev('mdt:roster'), 6, {})
+    local cody
+    for _, o in ipairs(roster or {}) do if o.charId == 6 then cody = o end end
+    check('the roster lists both officers', roster and #roster == 2, roster and #roster)
+    check('an hour and a half on duty', cody and cody.hours == 1.5 and cody.rank == 'Cadet', cody and json.encode(cody))
+    local prof = W.cb(ev('mdt:officer'), 1, { charId = 6 })
+    check('a profile with hours and stats', prof and prof.hours7 == 1.5 and prof.stats and prof.self == false, prof and json.encode(prof))
+    check('a citizen has no profile', W.cb(ev('mdt:officer'), 1, { charId = 5 }) == false)
+    check('a cadet cannot post a notice', W.cb(ev('mdt:announce'), 6, { text = 'Hello', urgent = false }) == false)
+    local n = W.cb(ev('mdt:announce'), 1, { text = 'Briefing at 6', urgent = true, hours = 2 })
+    check('command posts a notice', n and n.id)
+    local news = W.cb(ev('mdt:news'), 6, {})
+    check('officers read it', news and #news == 1 and news[1].urgent == true and news[1].by == 'Ava Reyes', news and json.encode(news))
+    W.clockSec = W.clockSec + 7300
+    check('it ends on its own', #W.cb(ev('mdt:news'), 6, {}) == 0)
+    n = W.cb(ev('mdt:announce'), 1, { text = 'Second notice' })
+    W.cb(ev('mdt:endNews'), 1, { id = n.id })
+    check('command takes it down', #W.cb(ev('mdt:news'), 6, {}) == 0)
+    check('an unknown award is refused', W.cb(ev('mdt:award'), 1, { charId = 6, award = 'Gold star' }) == false)
+    check('no award outside the department', W.cb(ev('mdt:award'), 1, { charId = 5, award = Config.Awards[1] }) == false)
+    local ok, why = W.cb(ev('mdt:award'), 1, { charId = 6, award = Config.Awards[2], note = 'Pulled a driver from a burning car' })
+    check('command gives an award', ok == true, why)
+    check('the officer gets a letter about it', count("SELECT COUNT(*) FROM pure_whip_police_mail WHERE charId = 6 AND title LIKE 'Award:%'") == 1)
+    check('a cadet cannot give awards', W.cb(ev('mdt:award'), 6, { charId = 1, award = Config.Awards[1] }) == false)
+    prof = W.cb(ev('mdt:officer'), 6, {})
+    check('the award is on their own profile', prof and prof.self == true and #prof.awards == 1, prof and json.encode(prof.awards))
+end)
+
+scenario('complaints and department rules', function()
+    local ok = exports[P]:FileComplaint(5, 'Cody Park', 'Too short')
+    check('a short complaint is refused', ok == false)
+    local c = exports[P]:FileComplaint(5, 'Cody Park', 'He shouted at me at the gas station and would not give his badge number.')
+    check('a complaint is filed', c and c.id)
+    exports[P]:FileComplaint(5, 'Unit 12', 'The officer parked across my driveway for two hours with no call going on.')
+    exports[P]:FileComplaint(5, 'Unit 12', 'The officer parked across my driveway again today with no call going on.')
+    check('the fourth in a day is refused', exports[P]:FileComplaint(5, 'Unit 12', 'Another long complaint about the very same officer and the very same thing.') == false)
+    check('a cadet cannot read complaints', W.cb(ev('mdt:complaints'), 6, {}) == false)
+    local list = W.cb(ev('mdt:complaints'), 1, {})
+    check('command reads them', list and #list == 3 and list[1].from == 'Lena Ortiz', list and #list)
+    local r, why = W.cb(ev('mdt:reviewComplaint'), 1, { id = c.id, status = 'sustained', officerCharId = 6, note = 'Verbal warning given' })
+    check('command records a finding', r == true, why)
+    check('a bad finding is refused', W.cb(ev('mdt:reviewComplaint'), 1, { id = c.id, status = 'guilty' }) == false)
+    check('the person who complained is told', count("SELECT COUNT(*) FROM pure_whip_police_mail WHERE charId = 5 AND title = ?", { 'Your complaint #' .. c.id }) == 1)
+    check('it counts on the officer profile', W.cb(ev('mdt:officer'), 1, { charId = 6 }).stats.complaints == 1)
+    check('nothing to sign before rules exist', W.cb(ev('mdt:ackSop'), 6, {}) == false)
+    check('a cadet cannot write the rules', W.cb(ev('mdt:setSop'), 6, { text = 'Anything goes' }) == false)
+    check('command writes the rules', W.cb(ev('mdt:setSop'), 1, { text = '1. Lights and siren only on a call.' }) == true)
+    local doc = W.cb(ev('mdt:officer'), 6, {}).sop
+    check('the officer sees them unsigned', doc and doc.version == 1 and doc.acked == false, doc and json.encode(doc))
+    W.cb(ev('mdt:ackSop'), 6, {})
+    check('signed', W.cb(ev('mdt:officer'), 6, {}).sop.acked == true)
+    check('command sees who read them', W.cb(ev('mdt:sop'), 1, {}).readers == 1)
+    W.cb(ev('mdt:setSop'), 1, { text = '1. Lights and siren only on a call.\n2. Body cam on.' })
+    doc = W.cb(ev('mdt:officer'), 6, {}).sop
+    check('a new version needs signing again', doc.version == 2 and doc.acked == false, json.encode(doc))
+end)
+
+scenario('permit applications from the court app', function()
+    local C = 'pure-whip-courts:app:'
+    local paper = W.cb(C .. 'papers', 5, {})
+    check('the papers list the permits you can apply for', paper and #paper.permitKinds == 2, paper and json.encode(paper.permitKinds))
+    check('a reason is needed', W.cb(C .. 'applyPermit', 5, { kind = 'weapon', reason = 'need' }) == false)
+    check('a kind outside the list is refused', W.cb(C .. 'applyPermit', 5, { kind = 'driver', reason = 'I drive for work every single day' }) == false)
+    local a, why = W.cb(C .. 'applyPermit', 5, { kind = 'weapon', reason = 'I run a jewellery shop and carry stock home at night' })
+    check('an application is sent', a and a.id, why)
+    check('only one waits at a time', W.cb(C .. 'applyPermit', 5, { kind = 'weapon', reason = 'I run a jewellery shop and carry stock home at night' }) == false)
+    local apps = W.cb(ev('mdt:permitApps'), 1, {})
+    check('command sees it', apps and #apps == 1 and apps[1].name == 'Lena Ortiz' and apps[1].label == 'Weapon permit', apps and json.encode(apps))
+    check('a cadet cannot decide', W.cb(ev('mdt:decidePermit'), 6, { id = a.id, approve = true }) == false)
+    check('a denial needs a reason', W.cb(ev('mdt:decidePermit'), 1, { id = a.id, approve = false }) == false)
+    check('approved', W.cb(ev('mdt:decidePermit'), 1, { id = a.id, approve = true }) == true)
+    check('the permit is valid now', exports[P]:HasValidLicence(5, 'weapon') == true)
+    check('it cannot be decided twice', W.cb(ev('mdt:decidePermit'), 1, { id = a.id, approve = false, note = 'no' }) == false)
+    paper = W.cb(C .. 'papers', 5, {})
+    check('the applicant sees it approved', paper.permitApps[1] and paper.permitApps[1].status == 'approved')
+    check('holding it, a new application is refused', W.cb(C .. 'applyPermit', 5, { kind = 'weapon', reason = 'I run a jewellery shop and carry stock home at night' }) == false)
+    local h = W.cb(C .. 'applyPermit', 2, { kind = 'hunting', reason = 'Deer season up north with my brother this fall' })
+    check('a second applicant', h and h.id)
+    W.cb(ev('mdt:decidePermit'), 1, { id = h.id, approve = false, note = 'Open hunting warrant' })
+    check('the denied applicant reads why', W.cb(C .. 'papers', 2, {}).permitApps[1].note == 'Open hunting warrant')
+    local f, fwhy = W.cb(C .. 'complain', 2, { officer = 'Ava Reyes', text = 'She searched my car with no reason given at all, then left.' })
+    check('a complaint through the court app', f and f.id, fwhy)
+end)
+
+scenario('case officers and log, automatic alerts', function()
+    local id = W.cb(ev('mdt:boardNew'), 1, { title = 'Gun store burglary' }).id
+    check('assign an officer', W.cb(ev('mdt:boardAssign'), 1, { id = id, charId = 6, on = true }) == true)
+    check('a case note', W.cb(ev('mdt:boardNote'), 6, { id = id, text = 'Two suspects on the store camera' }) == true)
+    check('an empty note is refused', W.cb(ev('mdt:boardNote'), 6, { id = id, text = '   ' }) == false)
+    local b = W.cb(ev('mdt:board'), 1, { id = id })
+    check('the case lists its officer', b and b.officers and #b.officers == 1 and b.officers[1].charId == 6, b and json.encode(b.officers))
+    check('the case log names the writer', b and b.log and #b.log == 1 and b.log[1].by == 'Cody Park', b and json.encode(b.log))
+    W.cb(ev('mdt:boardAssign'), 1, { id = id, charId = 6, on = false })
+    check('an officer is taken off', #W.cb(ev('mdt:board'), 1, { id = id }).officers == 0)
+    W.cb(ev('mdt:boardLeave'), 1, {})
+    local before = 0
+    for _ in pairs(PWP.Dispatch.alerts) do before = before + 1 end
+    local chance = Config.Dispatch.theftChance
+    Config.Dispatch.theftChance = 1
+    W.players[5].coords = vector3(2000, 2000, 30)
+    local picked = W.car({ plate = 'PICK 1', session = true, coords = vector3(2001, 2000, 30) })
+    W.fire('whip_core:vehicle:lockpicked', 'whip_core', nil, { source = 5, plate = 'PICK 1', vehicleId = picked.id })
+    W.fire('whip_core:vehicle:lockpicked', 'whip_core', nil, { source = 5, plate = 'PICK 1', vehicleId = picked.id })
+    W.fire('whip_core:vehicle:lockpicked', 'pure-whip-police', nil, { source = 5, plate = 'FAKE 1', vehicleId = picked.id })
+    W.fire('whip_core:vehicle:lockpicked', 'whip_core', nil, { source = 1, plate = 'COP 1', vehicleId = picked.id })
+    Config.Dispatch.theftChance = chance
+    W.fire('explosionEvent', nil, 5, 5, { posX = 3000.0, posY = 3000.0, posZ = 20.0, explosionType = 2 })
+    W.fire('explosionEvent', nil, 5, 5, { posX = 3010.0, posY = 3005.0, posZ = 20.0, explosionType = 2 })
+    local theft, boom, after = 0, 0, 0
+    for _, a in pairs(PWP.Dispatch.alerts) do
+        after = after + 1
+        if a.code == '10-60' then theft = theft + 1 end
+        if a.code == '10-80' then boom = boom + 1 end
+    end
+    check('one break-in call for the spot', theft == 1, theft)
+    check('one explosion call for the blast', boom == 1, boom)
+    check('nothing else was raised', after - before == 2, after - before)
+    W.players[5].coords = vector3(12, 11, 30)
 end)
 
 scenario('end state', function()

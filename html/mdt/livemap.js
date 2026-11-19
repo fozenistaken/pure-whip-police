@@ -56,14 +56,16 @@
       this.cx = 215; this.cy = -900; this.zoom = ZOOM.start;
       this.yaw = 0; this.pitch = 90; this.tiltTween = null;
       this.placed = false;
-      this.calls = []; this.units = []; this.pick = null;
+      this.calls = []; this.units = []; this.bolos = []; this.pick = null;
       this.marks = new Map();
       this.host = document.createElement('div');
       this.host.className = 'mm';
-      this.host.innerHTML = `<canvas class="mm-pic"></canvas><div class="mm-marks"></div><div class="mm-ctl">${controls || ''}</div><p class="mm-fail" hidden>The map did not load</p>`;
+      this.host.innerHTML = `<canvas class="mm-pic"></canvas><svg class="mm-lines" aria-hidden="true"></svg><div class="mm-marks"></div><div class="mm-ctl">${controls || ''}</div><p class="mm-fail" hidden>The map did not load</p>`;
       this.canvas = this.host.querySelector('.mm-pic');
       this.ctx = this.canvas.getContext('2d', { alpha: false });
       this.layer = this.host.querySelector('.mm-marks');
+      this.lineLayer = this.host.querySelector('.mm-lines');
+      this.lines = new Map();
       this.pending = false;
       this.gliding = false;
       this.resizer = new ResizeObserver(() => this.render());
@@ -225,6 +227,11 @@
       this.sync();
     }
 
+    setBolos(bolos) {
+      this.bolos = bolos || [];
+      this.sync();
+    }
+
     setUnits(units) {
       const now = performance.now();
       const old = new Map(this.units.map((u) => [u.callsign, u]));
@@ -265,7 +272,7 @@
       for (const c of this.calls) {
         if (!c.coords) continue;
         const key = 'c' + c.id;
-        const hi = c.priority === 'high';
+        const hi = c.level != null ? c.level <= 1 : c.priority === 'high';
         const on = this.pick === c.id;
         const html = `<b>${esc(c.code)}</b><span>${esc(c.title)}</span><i></i>`;
         want.set(key, { kind: 'call', x: c.coords.x, y: c.coords.y, html, cls: 'mm-call' + (hi ? ' hi' : '') + (on ? ' on pwp-bracket' + (hi ? ' danger' : '') : ''), id: c.id, label: `${c.code} ${c.title}` });
@@ -274,8 +281,12 @@
         const key = 'u' + u.callsign;
         const html = u.me
           ? '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2.5L19.5 20.5L12 16.6L4.5 20.5Z"/></svg>'
-          : `<i></i><span>${esc(u.callsign)}</span>`;
+          : `<i></i><span>${esc(u.callsign)}${u.speed >= 5 ? ' · ' + u.speed : ''}</span>`;
         want.set(key, { kind: 'unit', unit: u, html, cls: 'mm-unit' + (u.me ? ' mm-me' : '') + (u.sirens ? ' siren' : ''), status: u.status, move: u.kind || 'foot' });
+      }
+      for (const b of this.bolos) {
+        if (b.x == null || b.y == null) continue;
+        want.set('b' + b.plate, { kind: 'bolo', x: b.x, y: b.y, html: `<b>${esc(b.plate)}</b>`, cls: 'mm-bolo' + (b.stolen ? ' stolen' : '') });
       }
       if (this.waypoint) {
         want.set('wp', { kind: 'wp', x: this.waypoint.x, y: this.waypoint.y, html: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 22s-7-6-7-12a7 7 0 0114 0c0 6-7 12-7 12z"/><circle cx="12" cy="10" r="2.4"/></svg>', cls: 'mm-wp' });
@@ -308,10 +319,27 @@
       if (!flat) this.aim();
       const k = this.ppm();
       this.host.classList.toggle('far', this.zoom < ZOOM.far);
+      const seen = new Set();
+      for (const u of this.units) {
+        const c = u.alert != null && (u.status === 'enroute' || u.status === 'onscene') && this.calls.find((x) => x.id === u.alert);
+        if (!c || !c.coords) continue;
+        const p = this.unitAt(u, now);
+        const a = flat ? { sx: W / 2 + (p.x - this.cx) * k, sy: H / 2 - (p.y - this.cy) * k } : gl.project(p.x, p.y);
+        const b = flat ? { sx: W / 2 + (c.coords.x - this.cx) * k, sy: H / 2 - (c.coords.y - this.cy) * k } : gl.project(c.coords.x, c.coords.y);
+        let ln = this.lines.get(u.callsign);
+        if (!ln) { ln = document.createElementNS('http://www.w3.org/2000/svg', 'line'); this.lineLayer.appendChild(ln); this.lines.set(u.callsign, ln); }
+        ln.setAttribute('x1', (a.sx / rem).toFixed(2)); ln.setAttribute('y1', (a.sy / rem).toFixed(2));
+        ln.setAttribute('x2', (b.sx / rem).toFixed(2)); ln.setAttribute('y2', (b.sy / rem).toFixed(2));
+        ln.classList.toggle('on', u.status === 'onscene');
+        seen.add(u.callsign);
+      }
+      for (const [key, ln] of this.lines) if (!seen.has(key)) { ln.remove(); this.lines.delete(key); }
+      this.lineLayer.setAttribute('viewBox', `0 0 ${(W / rem).toFixed(2)} ${(H / rem).toFixed(2)}`);
       for (const el of this.marks.values()) {
         const m = el._m;
         let x = m.x, y = m.y, turn = '';
         if (m.kind === 'call') turn = ' translate(-50%,calc(-100% - .625rem))';
+        else if (m.kind === 'bolo') turn = ' translate(-50%,-50%)';
         else if (m.kind === 'unit') {
           const p = this.unitAt(m.unit, now);
           x = p.x; y = p.y;
@@ -417,6 +445,13 @@
 @keyframes mm-siren{from{opacity:1;transform:scale(.7)}to{opacity:0;transform:scale(1.6)}}
 @media (prefers-reduced-motion:reduce){.mm-unit.siren>i::after{animation:none;opacity:.8}}
 .mm-wp{color:var(--route)}
+.mm-lines{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}
+.mm-lines line{stroke:var(--route);stroke-width:.125;stroke-dasharray:.375 .25;opacity:.85}
+.mm-lines line.on{stroke-dasharray:none;opacity:.5}
+.mm-marks>.mm-bolo{width:auto;height:auto}
+.mm-bolo b{display:block;padding:.0625rem .3125rem;border-radius:.1875rem;background:var(--bg);box-shadow:inset 0 0 0 1px var(--warn);color:var(--warn);font-family:var(--mono);font-size:.6875rem;font-weight:600;white-space:nowrap}
+.mm-bolo.stolen b{box-shadow:inset 0 0 0 1px var(--danger);color:var(--danger)}
+.mm.far .mm-bolo b{font-size:.625rem}
 .mm-wp svg{position:absolute;left:-.8125rem;top:-1.5rem;width:1.625rem;height:1.625rem;fill:currentColor;stroke:var(--bg);stroke-width:1.4}
 .mm-unit.mm-me{width:1.375rem;height:1.375rem;margin:-.6875rem 0 0 -.6875rem;color:var(--accent);z-index:3}
 .mm-unit.mm-me svg{width:100%;height:100%;fill:currentColor;stroke:var(--bg);stroke-width:1.6;stroke-linejoin:round}

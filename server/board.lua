@@ -1,4 +1,5 @@
-local T = { cases = 'pure_whip_police_investigations', items = 'pure_whip_police_board_items', links = 'pure_whip_police_board_links' }
+local T = { cases = 'pure_whip_police_investigations', items = 'pure_whip_police_board_items', links = 'pure_whip_police_board_links',
+    officers = 'pure_whip_police_board_officers', log = 'pure_whip_police_board_log' }
 local KINDS = { person = true, vehicle = true, report = true, evidence = true, note = true }
 local MAX_ITEMS = 60
 local Board = { viewers = {} }
@@ -30,6 +31,17 @@ function Board.open(id, src)
     if not c then return false, 'No such investigation' end
     c.items = MySQL.query.await(('SELECT `id`, `kind`, `ref`, `label`, `sub`, `x`, `y` FROM `%s` WHERE `caseId` = ? ORDER BY `id`'):format(T.items), { id }) or {}
     c.links = MySQL.query.await(('SELECT `id`, `a`, `b`, `label` FROM `%s` WHERE `caseId` = ?'):format(T.links), { id }) or {}
+    c.officers = MySQL.query.await(('SELECT `charId` FROM `%s` WHERE `caseId` = ? ORDER BY `at`'):format(T.officers), { id }) or {}
+    c.log = MySQL.query.await(('SELECT `id`, `text`, `byCharId`, `at` FROM `%s` WHERE `caseId` = ? ORDER BY `id` DESC LIMIT 100'):format(T.log), { id }) or {}
+    local ids = { c.leadCharId }
+    for _, o in ipairs(c.officers) do ids[#ids + 1] = o.charId end
+    for _, l in ipairs(c.log) do ids[#ids + 1] = l.byCharId end
+    local list = {}
+    for _, i in ipairs(ids) do if i then list[#list + 1] = i end end
+    local names = #list > 0 and Whip.core:GetCharacterNames(list) or {}
+    c.lead = c.leadCharId and names[c.leadCharId] or nil
+    for _, o in ipairs(c.officers) do o.name = names[o.charId] end
+    for _, l in ipairs(c.log) do l.by = l.byCharId and names[l.byCharId] or nil end
     if src then Board.viewers[src] = id end
     return c
 end
@@ -113,6 +125,33 @@ end
 
 Board.tell = tell
 
+function Board.assign(src, a)
+    local id, charId = tonumber(a.id), tonumber(a.charId)
+    if not id or not charId then return false, 'Pick an officer' end
+    if a.on then
+        MySQL.insert.await(('INSERT IGNORE INTO `%s` (`caseId`, `charId`, `at`) VALUES (?, ?, ?)'):format(T.officers), { id, charId, now() })
+        local target = PWP.sourceOf(charId)
+        if target and GetResourceState('whip_phone') == 'started' then
+            exports.whip_phone:Notify(target, { app = 'pwpmdt', title = 'Investigation #' .. id, text = 'You were put on this case', kind = 'command' })
+        end
+    else
+        MySQL.update.await(('DELETE FROM `%s` WHERE `caseId` = ? AND `charId` = ?'):format(T.officers), { id, charId })
+    end
+    touch(id)
+    tell(id, src)
+    return true
+end
+
+function Board.note(src, a)
+    local id = tonumber(a.id)
+    local text = PWP.Text.clean(a.text, 1000)
+    if not id or not text then return false, 'Write the note' end
+    MySQL.insert.await(('INSERT INTO `%s` (`caseId`, `text`, `byCharId`, `at`) VALUES (?, ?, ?, ?)'):format(T.log), { id, text, Whip.core:GetCharId(src), now() })
+    touch(id)
+    tell(id, src)
+    return true
+end
+
 function Board.leave(src) Board.viewers[src] = nil end
 
 AddEventHandler('playerDropped', function() Board.viewers[source] = nil end)
@@ -127,6 +166,10 @@ Whip.register(function()
             `caseId` INT UNSIGNED NOT NULL, `kind` VARCHAR(10) NOT NULL, `ref` VARCHAR(40) NULL, `label` VARCHAR(80) NOT NULL,
             `sub` VARCHAR(120) NULL, `x` FLOAT NOT NULL DEFAULT 0, `y` FLOAT NOT NULL DEFAULT 0, `byCharId` INT UNSIGNED NULL,
             INDEX (`caseId`)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4]] },
+        { T.officers, [[CREATE TABLE IF NOT EXISTS `%s` (`caseId` INT UNSIGNED NOT NULL, `charId` INT NOT NULL, `at` INT UNSIGNED NOT NULL,
+            PRIMARY KEY (`caseId`, `charId`)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4]] },
+        { T.log, [[CREATE TABLE IF NOT EXISTS `%s` (`id` INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY, `caseId` INT UNSIGNED NOT NULL,
+            `text` VARCHAR(1000) NOT NULL, `byCharId` INT NULL, `at` INT UNSIGNED NOT NULL, INDEX (`caseId`)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4]] },
         { T.links, [[CREATE TABLE IF NOT EXISTS `%s` (`id` INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
             `caseId` INT UNSIGNED NOT NULL, `a` INT UNSIGNED NOT NULL, `b` INT UNSIGNED NOT NULL, `label` VARCHAR(40) NULL,
             INDEX (`caseId`)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4]] },

@@ -243,6 +243,32 @@ AddEventHandler('whip_gunny:weapon:fired', function(e)
     Dispatch.send({ code = '10-71', title = 'Shots fired', coords = e.coords, info = { 'Gunshots reported in the area' } })
 end)
 
+local function cellBusy(kind, coords)
+    local cell = ('%s:%d:%d'):format(kind, math.floor(coords.x / 150), math.floor(coords.y / 150))
+    local now = os.time()
+    if (Dispatch.lastShot[cell] or 0) > now then return true end
+    Dispatch.lastShot[cell] = now + Config.Dispatch.shotsCooldown
+    return false
+end
+
+AddEventHandler('whip_core:vehicle:lockpicked', function(e)
+    if GetInvokingResource() ~= 'whip_core' or type(e) ~= 'table' or not e.source then return end
+    if math.random() >= Config.Dispatch.theftChance or PWP.Depts.ofSource(e.source) then return end
+    local ped = GetPlayerPed(e.source)
+    if not ped or ped == 0 then return end
+    local c = GetEntityCoords(ped)
+    if cellBusy('theft', c) then return end
+    Dispatch.send({ code = '10-60', title = 'Car break-in', coords = c, priority = 'normal',
+        info = { e.plate and ('A witness saw plate %s'):format(e.plate) or 'A witness saw someone break into a car' } })
+end)
+
+AddEventHandler('explosionEvent', function(_, ev)
+    if not Config.Dispatch.explosions or type(ev) ~= 'table' or not ev.posX then return end
+    local c = vector3(ev.posX + 0.0, ev.posY + 0.0, (ev.posZ or 0.0) + 0.0)
+    if cellBusy('boom', c) then return end
+    Dispatch.send({ code = '10-80', title = 'Explosion', coords = c, priority = 'high', info = { 'Loud blast reported' } })
+end)
+
 AddEventHandler(PWP.event('dutyChanged'), function(e)
     if not e.onDuty and e.source then Dispatch.units[e.source] = nil end
 end)

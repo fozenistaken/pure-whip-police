@@ -90,6 +90,17 @@ Config.Licences = {
 -- GetCitizenLicences exports (a driving school, a gun shop). Example: pilot = 'Pilot licence'
 Config.CitizenLicences = { driver = 'Driver licence', weapon = 'Weapon permit', hunting = 'Hunting licence' }
 
+-- Citizen permit applications from the Court app (Papers tab). apply: licence keys of Config.CitizenLicences people may
+-- ask for; command approves or denies them in the MDT (Command). Example: Config.Permits = { apply = { 'weapon' } }
+Config.Permits = { apply = { 'weapon', 'hunting' } }
+
+-- Weapons registry. autoRegister: a gun bought in a WHIP shop is registered to the buyer by its serial (whip_gunny
+-- serials). Officers mark registered guns stolen, seized or destroyed. Example: Config.Weapons = { autoRegister = false }
+Config.Weapons = { autoRegister = true }
+
+-- Awards command can give an officer (shown on the officer's profile). Example: Config.Awards = { 'Medal of Valor' }
+Config.Awards = { 'Medal of Valor', 'Lifesaving Award', 'Commendation', 'Distinguished Service', 'Officer of the Month' }
+
 -- Records. tags: labels officers can put on a person (shown on the record and in search), up to 24 characters each.
 -- Example: tags = { 'Armed', 'Violent', 'Gang member' }
 Config.Records = { tags = { 'Armed', 'Violent', 'Gang member', 'Flight risk', 'Officer safety', 'Mental health', 'Informant' } }
@@ -383,4 +394,6 @@ Config.Dispatch = {
     mergeMetres = 120.0,    -- a repeat report of the same code this close joins the open call (x2, x3...), 0-500; 0 never merges
     mergeSeconds = 300,     -- ...if that call is younger than this, 30-3600
     keepDays = 30,          -- closed calls kept in the call history, 1-365
+    theftChance = 0.6,      -- chance a car lockpick is reported (a witness), 0-1; 0 turns theft calls off
+    explosions = true,      -- explosions in the city make a call (one per area per shotsCooldown)
 }

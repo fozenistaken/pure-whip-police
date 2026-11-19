@@ -38,7 +38,8 @@ function H.me(src, dept)
         level = role.level, name = p.fullName, callsign = D.callsign(src), status = u.status, perms = perms,
         courts = PWP.courts() ~= nil, academy = (role.level or 0) < Config.Academy.untilLevel,
         forensics = PWP.forensics() ~= nil, tags = Config.Records.tags, templates = Config.ReportTemplates,
-        licenceKinds = Config.CitizenLicences, judge = Config.Warrants.judge == 'auto' and PWP.courts() ~= nil }
+        licenceKinds = Config.CitizenLicences, judge = Config.Warrants.judge == 'auto' and PWP.courts() ~= nil,
+        charId = Whip.core:GetCharId(src), awards = Config.Awards }
 end
 
 function H.dashboard(src, dept)
@@ -73,6 +74,7 @@ function H.person(_, _, a)
     row.warrants, row.reports, row.notes, row.fines, row.sentence = rec.warrants, rec.reports, rec.notes, rec.fines, rec.sentence
     row.tags, row.licences = rec.tags or {}, PWP.Permits.list(charId)
     row.mugshot = PWP.Mugshots.has(charId)
+    row.weapons = PWP.Weapons.ofOwner(charId)
     decorate(row.notes or {}, 'authorCharId', 'author')
     row.vehicles = MySQL.query.await('SELECT `vehicleId`, `model`, `plate`, `state` FROM `vehicles` WHERE `ownerCharId` = ? LIMIT 20', { charId }) or {}
     row.online = sourceOf(charId) ~= nil
@@ -162,6 +164,38 @@ end }
 
 H.mugshot = { perm = 'records', fn = function(src, _, a) return PWP.Mugshots.ask(src, num(a.charId)) end }
 function H.mugshotImage(_, _, a) return { image = PWP.Mugshots.image(num(a.charId)) } end
+H.weapon = { perm = 'records', fn = function(_, _, a) return { weapon = PWP.Weapons.get(a.serial) } end }
+H.weaponStatus = { perm = 'records', fn = function(src, _, a)
+    local ok, why = PWP.Weapons.setStatus(a.serial, a.status, Whip.core:GetCharId(src), a.note)
+    if not ok then return false, why end
+    Whip.core:LogActivity(src, 'weapon_' .. tostring(a.status), { detail = tostring(a.serial) })
+    return true
+end }
+local C = PWP.Command
+function H.roster(_, dept) return C.roster(dept) end
+function H.officer(src, dept, a)
+    local id = num(a.charId) or Whip.core:GetCharId(src)
+    local p, why = C.profile(id, dept)
+    if not p then return false, why end
+    p.self = id == Whip.core:GetCharId(src)
+    if p.self then p.sop = C.sop(dept, id) end
+    return p
+end
+function H.news(_, dept) return C.news(dept) end
+H.announce = { perm = 'command', fn = function(src, dept, a) return C.announce(src, dept, a.text, a.urgent == true, a.hours) end }
+H.endNews = { perm = 'command', fn = function(_, dept, a) return C.endNews(num(a.id), dept) end }
+H.award = { perm = 'command', fn = function(src, dept, a) return C.award(src, dept, num(a.charId), a.award, a.note) end }
+H.complaints = { perm = 'command', fn = function() return C.complaints() end }
+H.reviewComplaint = { perm = 'command', fn = function(src, _, a) return C.reviewComplaint(src, num(a.id), a.status, num(a.officerCharId), a.note) end }
+function H.sop(src, dept)
+    local doc = C.sop(dept, Whip.core:GetCharId(src))
+    if Whip.core:HasJobPermission(src, dept, 'command') then doc.readers = C.sopReaders(dept) end
+    return doc
+end
+H.setSop = { perm = 'command', fn = function(src, dept, a) return C.setSop(src, dept, a.text) end }
+function H.ackSop(src, dept) return C.ackSop(Whip.core:GetCharId(src), dept) end
+H.permitApps = { perm = 'command', fn = function() return PWP.Permits.apps() end }
+H.decidePermit = { perm = 'command', fn = function(src, _, a) return PWP.Permits.decide(src, num(a.id), a.approve == true, a.note) end }
 H.setTag = { perm = 'records', fn = function(src, _, a) return R.setTag(num(a.charId), a.tag, a.on == true, src) end }
 H.licence = { perm = 'records', fn = function(src, dept, a)
     if a.act ~= 'suspend' then
@@ -276,13 +310,14 @@ local function where(src)
     if not ped or ped == 0 then return nil end
     local c = GetEntityCoords(ped)
     local veh = GetVehiclePedIsIn(ped, false)
-    local kind, sirens = 'foot', nil
+    local kind, sirens, speed = 'foot', nil, 0
     if veh and veh ~= 0 then
         kind = KINDS[GetVehicleType(veh)] or 'car'
         sirens = IsVehicleSirenOn(veh) or nil
+        speed = math.floor(GetEntitySpeed(veh) * PWP.Radar.factor(Config.Radar.unit) + 0.5)
     end
     return { x = math.floor(c.x * 10 + 0.5) / 10, y = math.floor(c.y * 10 + 0.5) / 10,
-        h = math.floor(GetEntityHeading(ped) + 0.5), kind = kind, sirens = sirens }
+        h = math.floor(GetEntityHeading(ped) + 0.5), kind = kind, sirens = sirens, speed = speed }
 end
 
 function H.map(src, dept)
@@ -294,7 +329,12 @@ function H.map(src, dept)
             units[#units + 1] = at
         end
     end
-    return { calls = D.list(dept), units = units }
+    local bolos = {}
+    for _, b in ipairs(R.activeBolos()) do
+        local seen = b.plate and PWP.Traffic.lastSeen(b.plate)
+        if seen then bolos[#bolos + 1] = { plate = b.plate, x = seen.x, y = seen.y, stolen = b.stolen == 1 or nil } end
+    end
+    return { calls = D.list(dept), units = units, bolos = bolos }
 end
 
 function H.waypoint(src, dept, a)
@@ -331,6 +371,8 @@ H.boardRemove = { perm = 'records', fn = function(src, _, a) return PWP.Board.re
 H.boardLink = { perm = 'records', fn = function(src, _, a) return PWP.Board.link(src, a) end }
 H.boardStatus = { perm = 'records', fn = function(src, _, a) return PWP.Board.setStatus(src, a) end }
 function H.boardLeave(src) PWP.Board.leave(src) return true end
+H.boardAssign = { perm = 'records', fn = function(src, _, a) return PWP.Board.assign(src, a) end }
+H.boardNote = { perm = 'records', fn = function(src, _, a) return PWP.Board.note(src, a) end }
 H.impoundPreview = { perm = 'fine', fn = function(_, _, a) return PWP.Impound.preview(num(a.vehicleId)) end }
 H.impoundFile = { perm = 'fine', fn = function(src, dept, a)
     local spec = type(a.spec) == 'table' and a.spec or {}
