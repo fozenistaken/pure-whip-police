@@ -15,6 +15,19 @@
 .mdt.ph .mdt-who{flex:1}
 .mdt-top .pwp-search{flex:1;min-width:12rem}
 .mdt.ph .mdt-top .pwp-search{flex-basis:100%;order:3}
+.mdt.ph .mdt-top{flex-wrap:wrap;padding:.375rem .75rem .5rem;gap:.5rem}
+.mdt.ph .mdt-who span{display:none}
+.mdt-find{display:none}
+.mdt.ph .mdt-find{display:grid;place-items:center;width:2.25rem;height:2.25rem;flex:none;border-radius:var(--rs);color:var(--text)}
+.mdt.ph .mdt-find.on{background:var(--sel);color:var(--on-sel)}
+.mdt.ph .mdt-find svg{width:1.125rem;height:1.125rem}
+.mdt.ph .mdt-rec.min{align-items:center;gap:.625rem}
+.mdt.ph .mdt-rec.min .mdt-ava{width:2rem;height:2rem;font-size:.75rem}
+.mdt.ph .mdt-rec.min .mdt-name h1{font-size:1.0625rem}
+.mdt.ph .mdt-rec.min .mdt-name p,.mdt.ph .mdt-rec.min .mdt-flags .pwp-flag:not(.danger){display:none}
+.mdt.ph .mdt-rec.min .mdt-flags{margin-top:.25rem}
+.mdt-acts{display:grid;gap:.25rem}
+.mdt-acts .pwp-row svg{width:1.125rem;height:1.125rem;flex:none;color:var(--mute)}
 .mdt-status button[data-s=available]{--dot:var(--ok)}
 .mdt-status button[data-s=busy]{--dot:var(--warn)}
 .mdt-status button[data-s=enroute],.mdt-status button[data-s=onscene]{--dot:var(--route)}
@@ -368,6 +381,17 @@ button.pwp-code.mdt-cp{background:none;padding:0;text-align:left}
   const hasMap = () => !!window.PWPLiveMap;
   const onMap = (s) => s.nav === 'dispatch' && s.dview === 'map' && hasMap();
   const scroll = (inner, key) => `<div class="mdt-scroll" data-scroll="${key}">${inner}</div>`;
+  const personActs = (app) => {
+    const pm = perms(app); const p = app.state.person || {};
+    return [
+      pm.records && ['openSheet', 'note', 'note', 'Note'],
+      pm.records && p.online && ['mugshot', '', 'camera', 'Mugshot'],
+      pm.records && ['openSheet', 'tags', 'pin', 'Tags'],
+      pm.records && ['openSheet', 'bolo', 'wanted', 'BOLO'],
+      pm.warrants && ['openSheet', 'warrant', 'command', 'Warrant'],
+    ].filter(Boolean);
+  };
+  const NAV_PHONE = 4;
 
   const screens = {
     dispatch(app, phone) {
@@ -392,9 +416,9 @@ button.pwp-code.mdt-cp{background:none;padding:0;text-align:left}
         <section class="pwp-card"><p class="pwp-lbl">Latest reports</p>${recent.length ? recent.map(reportRow).join('') : '<div class="pwp-empty">No reports yet</div>'}</section>`, 'dispatch') };
     },
 
-    records(app) {
+    records(app, phone) {
       const s = app.state;
-      if (s.person) return screens.person(app);
+      if (s.person) return screens.person(app, phone);
       const r = s.results;
       if (!r) {
         const lot = s.lot || { rows: [], lots: [] };
@@ -424,7 +448,7 @@ button.pwp-code.mdt-cp{background:none;padding:0;text-align:left}
         ${gun}${match || found || filed ? `<section class="pwp-card"><p class="pwp-lbl">Evidence</p>${match}${found}${filed}</section>` : ''}`, 'results') };
     },
 
-    person(app) {
+    person(app, phone) {
       const s = app.state; const p = s.person; const pm = perms(app);
       const active = (p.warrants || []).filter((w) => w.status === 'active');
       const unpaid = (p.fines || []).filter((f) => f.status === 'unpaid');
@@ -457,14 +481,11 @@ button.pwp-code.mdt-cp{background:none;padding:0;text-align:left}
         notes: () => `<section class="pwp-card"><p class="pwp-lbl">Notes</p>${(p.notes || []).length ? p.notes.map((n) => `<div class="pwp-row"><span class="t">${B.esc(n.text)}<span class="s">${B.esc(n.author || '')} · ${when(n.createdAt)}</span></span></div>`).join('') : '<div class="pwp-empty">No notes</div>'}</section>`,
       };
       const canCharge = pm.fine || pm.jail;
-      const acts = [
-        pm.records ? `<button class="pwp-btn mdt-side-act pwp-press" data-act="openSheet" data-k="note" aria-label="Note">${B.icons.note}<span class="mdt-at">Note</span></button>` : '',
-        pm.records && p.online ? `<button class="pwp-btn mdt-side-act pwp-press" data-act="mugshot" aria-label="Mugshot">${B.icons.camera || B.icons.badge}<span class="mdt-at">Mugshot</span></button>` : '',
-        pm.records ? `<button class="pwp-btn mdt-side-act pwp-press" data-act="openSheet" data-k="tags" aria-label="Tags">${B.icons.pin}<span class="mdt-at">Tags</span></button>` : '',
-        pm.records ? `<button class="pwp-btn mdt-side-act pwp-press" data-act="openSheet" data-k="bolo" aria-label="BOLO">${B.icons.wanted}<span class="mdt-at">BOLO</span></button>` : '',
-        pm.warrants ? `<button class="pwp-btn mdt-side-act pwp-press" data-act="openSheet" data-k="warrant" aria-label="Warrant">${B.icons.command}<span class="mdt-at">Warrant</span></button>` : '',
-        canCharge ? `<button class="pwp-cta has-kbd pwp-press" data-act="openSheet" data-k="charge">${B.icons.gavel}Charge<span class="pwp-kbd">C</span></button>` : '',
-      ].join('');
+      const list = personActs(app);
+      const acts = (phone
+        ? (list.length ? `<button class="pwp-btn pwp-press" data-act="openSheet" data-k="pactions">${B.icons.more || B.icons.list}Actions</button>` : '')
+        : list.map(([act, k, icon, label]) => `<button class="pwp-btn mdt-side-act pwp-press" data-act="${act}"${k ? ` data-k="${k}"` : ''} aria-label="${label}">${B.icons[icon] || B.icons.badge}<span class="mdt-at">${label}</span></button>`).join(''))
+        + (canCharge ? `<button class="pwp-cta has-kbd pwp-press" data-act="openSheet" data-k="charge">${B.icons.gavel}Charge<span class="pwp-kbd">C</span></button>` : '');
       return {
         body: `<div class="mdt-rec">${(s.mugs || {})[p.charId] ? `<div class="mdt-ava pic"><img src="${B.esc(s.mugs[p.charId])}" alt="Mugshot of ${B.esc(p.firstName)}"></div>` : `<div class="mdt-ava">${B.esc(initials(p))}</div>`}<div class="mdt-name"><h1>${B.esc(p.firstName)} ${B.esc(p.lastName)}</h1><p class="mono"><button class="pwp-code mdt-cp" data-act="copy" data-v="${p.charId}" title="Copy">ID ${p.charId}</button> · born ${B.esc(day(p.dateOfBirth))} · ${B.esc(p.gender)}</p>${flags ? `<div class="mdt-flags">${flags}</div>` : ''}</div>
           <button class="pwp-btn ghost icon pwp-press" data-act="closePerson" aria-label="Close record">${B.icons.x}</button></div>
@@ -672,6 +693,14 @@ button.pwp-code.mdt-cp{background:none;padding:0;text-align:left}
         ${f.tow && f.via === 'street' ? `<div class="mdt-chips"><button class="mdt-chip ${s.f.impTow ? 'on' : ''}" data-act="impTow" aria-pressed="${!!s.f.impTow}">Send a tow truck</button></div>` : ''}
         <div class="mdt-cost"><div><small>Fee</small><b>${B.money(c.fee)}</b></div><div><small>${s.f.impHold === 'days' ? 'At pickup' : 'Per day'}</small><b>${s.f.impHold === 'days' ? B.money(c.pickup) : '+' + B.money(f.perDay)}</b></div><div><small>At most</small><b>${B.money(c.most)}</b></div></div>`;
       foot = `<button class="pwp-cta wide pwp-press" data-act="impoundFile" ${s.f.impReason ? '' : 'disabled'}>${s.f.impTow ? 'Call the tow for ' : 'Impound '}${B.esc(f.plate || '')}</button>`;
+    } else if (k === 'pactions') {
+      title = 'Actions';
+      body = `<div class="mdt-acts">${personActs(app).map(([act, k2, icon, label]) => `<button class="pwp-row pwp-press" data-act="pact" data-a="${act}"${k2 ? ` data-k="${k2}"` : ''}>${B.icons[icon] || B.icons.badge}<span class="t">${label}</span></button>`).join('')}</div>`;
+      foot = '';
+    } else if (k === 'more') {
+      title = 'More';
+      body = `<div class="mdt-acts">${navFor(app).slice(NAV_PHONE).map(([id, label, icon]) => `<button class="pwp-row pwp-press ${s.nav === id ? 'on' : ''}" data-act="nav" data-t="${id}">${B.icons[icon]}<span class="t">${label}</span></button>`).join('')}</div>`;
+      foot = '';
     } else if (k === 'announce') {
       title = 'Post a notice';
       body = `<textarea id="f-newsText" class="pwp-in" data-bind="newsText" placeholder="What every officer on duty should know">${val(app, 'newsText')}</textarea>
@@ -765,10 +794,16 @@ button.pwp-code.mdt-cp{background:none;padding:0;text-align:left}
     const me = s.me;
     const view = (screens[s.nav] || screens.dispatch)(app, phone);
     const callCount = (s.calls || []).length;
-    const nav = `<nav class="mdt-nav" data-glide="nav" aria-label="Sections">${navFor(app).map(([id, label, icon]) => `<button class="${s.nav === id ? 'on' : ''}" data-act="nav" data-t="${id}" aria-current="${s.nav === id ? 'page' : 'false'}">${B.icons[icon]}${label}${phone && id === 'dispatch' && s.nav !== 'dispatch' && callCount ? `<span class="n">${callCount}</span>` : ''}</button>`).join('')}</nav>`;
+    const all = navFor(app);
+    const extra = phone && all.length > NAV_PHONE + 1 ? all.slice(NAV_PHONE) : [];
+    const shownNav = extra.length ? all.slice(0, NAV_PHONE) : all;
+    const navBtn = ([id, label, icon]) => `<button class="${s.nav === id ? 'on' : ''}" data-act="nav" data-t="${id}" aria-current="${s.nav === id ? 'page' : 'false'}">${B.icons[icon]}${label}${phone && id === 'dispatch' && s.nav !== 'dispatch' && callCount ? `<span class="n">${callCount}</span>` : ''}</button>`;
+    const moreOn = extra.some(([id]) => id === s.nav);
+    const nav = `<nav class="mdt-nav" data-glide="nav" aria-label="Sections">${shownNav.map(navBtn).join('')}${extra.length ? `<button class="${moreOn ? 'on' : ''}" data-act="openSheet" data-k="more" aria-current="${moreOn ? 'page' : 'false'}">${B.icons.more || B.icons.list}More</button>` : ''}</nav>`;
+    const findOpen = !phone || s.findOpen || !!s.f.q;
     const top = `<header class="mdt-top"><button class="mdt-cs mdt-me" data-act="openOfficer" title="My profile">${B.esc(me.callsign || '')}</button><div class="mdt-who"><b>${B.esc(me.name || '')}</b><span>${B.esc([me.rank, me.short].filter(Boolean).join(' · '))}</span></div>
-      ${statusSeg(app)}
-      <label class="pwp-search">${B.icons.search}<input id="f-q" data-bind="q" data-enter="search" value="${val(app, 'q')}" placeholder="Search name, ID, plate, report # or evidence" autocomplete="off">${phone ? '' : '<span class="pwp-kbd">/</span>'}</label></header>`;
+      ${statusSeg(app)}<button class="mdt-find pwp-press ${findOpen ? 'on' : ''}" data-act="toggleFind" aria-label="Search" aria-pressed="${findOpen}">${B.icons.search}</button>
+      ${findOpen ? `<label class="pwp-search">${B.icons.search}<input id="f-q" data-bind="q" data-enter="search" value="${val(app, 'q')}" placeholder="Search name, ID, plate, report # or evidence" autocomplete="off">${phone ? '' : '<span class="pwp-kbd">/</span>'}</label>` : ''}</header>`;
     const main = `<main class="mdt-main"><div class="pwp-busy ${s.busyShown ? 'on' : ''}"></div><div class="mdt-view">${s.sheet ? '' : errBar(app)}${view.body}</div>${view.act ? `<div class="mdt-act">${view.act}</div>` : ''}${sheet(app, phone)}</main>`;
     if (phone) return `<div class="pwp mdt ph">${top}${main}${nav}</div>`;
     return `<div class="pwp mdt tab">${top}${nav}${main}<aside class="mdt-side"><p class="pwp-lbl">Live calls</p><div class="mdt-calls">${callList(app)}</div></aside></div>`;
@@ -811,6 +846,12 @@ button.pwp-code.mdt-cp{background:none;padding:0;text-align:left}
     else { map.detach(); stopPoll(ctx); }
   };
 
+  const shrinkRecord = (root) => {
+    const box = root.querySelector('.mdt.ph [data-scroll^="person-"]');
+    const rec = root.querySelector('.mdt.ph .mdt-rec');
+    if (box && rec) rec.classList.toggle('min', box.scrollTop > 24);
+  };
+
   const draw = (app) => {
     const ctx = live.get(app);
     if (!ctx || !B) return;
@@ -825,6 +866,7 @@ button.pwp-code.mdt-cp{background:none;padding:0;text-align:left}
     const sheetWas = !!root.querySelector('.pwp-sheet');
     root.innerHTML = render(app, view && view.size === 'phone');
     root.querySelectorAll('[data-scroll]').forEach((n) => { if (scrolls[n.dataset.scroll]) n.scrollTop = scrolls[n.dataset.scroll]; });
+    shrinkRecord(root);
     root.querySelectorAll('[data-glide]').forEach((g) => B.glide(g, ctx.mem, g.dataset.glide));
     syncMap(app, ctx, root);
     if (app.state.scrollCall != null) {
@@ -1035,6 +1077,14 @@ button.pwp-code.mdt-cp{background:none;padding:0;text-align:left}
       if (d.k === 'penal' && !d.keep) { s.f.pCode = s.f.pTitle = s.f.pFine = s.f.pMonths = ''; s.f.pCat = 'misdemeanor'; }
     },
     closeSheet(app) { closeSheet(app); return 'skip'; },
+    toggleFind(app) {
+      const s = app.state; s.findOpen = !s.findOpen;
+      if (s.findOpen) setTimeout(() => { const ctx = live.get(app); const i = ctx && ctx.el.querySelector('#f-q'); if (i) i.focus(); }, 0);
+    },
+    pact(app, d) {
+      const s = app.state; s.sheet = null;
+      return actions[d.a](app, d);
+    },
     count(app, d) { const c = app.state.charges; c[d.c] = Math.max(0, Math.min(20, (c[d.c] || 0) + Number(d.d))); },
     outcome(app, d) { app.state.outcome = d.v; },
     async fine(app) {
@@ -1314,6 +1364,7 @@ button.pwp-code.mdt-cp{background:none;padding:0;text-align:left}
 
   const wire = (app, el) => {
     dragPins(app, el);
+    el.addEventListener('scroll', (e) => { if (e.target.dataset && /^person-/.test(e.target.dataset.scroll || '')) shrinkRecord(el); }, true);
     el.addEventListener('click', (e) => {
       const t = e.target.closest('[data-act]');
       if (!t || !el.contains(t) || t.disabled) return;
@@ -1351,6 +1402,7 @@ button.pwp-code.mdt-cp{background:none;padding:0;text-align:left}
     icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 2.5l7.5 3v5.7c0 4.6-3.2 8.5-7.5 10.3-4.3-1.8-7.5-5.7-7.5-10.3V5.5z"/><path d="M12 8.2l1.3 2.6 2.9.4-2.1 2 .5 2.9-2.6-1.4-2.6 1.4.5-2.9-2.1-2 2.9-.4z"/></svg>',
     state: () => ({ nav: 'dispatch', dview: 'map', pick: null, me: null, err: null, busy: 0, charges: {}, rtab: 'overview', outcome: 'fine', sheet: null, f: { pCat: 'misdemeanor' } }),
     mount(app, el, view) {
+      if (view && view.size === 'phone' && !app.forced && typeof app.fold === 'function') app.fold();
       el.innerHTML = '<div class="mdt-root"></div>';
       const ctx = { el, view, mem: {} };
       live.set(app, ctx);

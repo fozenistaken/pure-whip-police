@@ -1,6 +1,101 @@
 # pure-whip-police
 
-A police job made for [WHIP](https://whipfx.net). It covers departments, duty, gear, arrests, records, fines, a prison, dispatch and a department radio, plus an MDT inside whip_phone. Each part is built on WHIP's own systems: jobs and duty, permissions, points, containers, shops, doors, blips, zones, voice lines and phone apps.
+**A complete police job for [WHIP](https://whipfx.net), by [PureFX](https://purefx.dev).**
+
+Departments, duty, gear, arrests, records, tickets, impound, a prison, dispatch, a department radio, K9, CCTV, forensics
+and an MDT that lives on the whip_phone. Each part is built on WHIP's own systems (jobs and duty, permissions, points,
+containers, shops, doors, blips, zones, voice lines and phone apps), so it sets up in game and talks to the rest of a
+WHIP server without glue code.
+
+More from PureFX at **[purefx.dev](https://purefx.dev)**.
+
+<img src="docs/img/mdt-person.webp" width="820" alt="The MDT on the unfolded phone: a person's record">
+
+## Features
+
+### MDT on the phone
+
+Officers open the MDT from the F1 wheel, `/mdt` or the phone's MDT app. It opens on the unfolded phone: sections on
+the left, live calls on the right, one search box for people, plates, reports, gun serials and evidence codes. Folded,
+it keeps working in a compact layout.
+
+| | |
+|---|---|
+| <img src="docs/img/mdt-dispatch.webp" width="400" alt="Dispatch board"> | <img src="docs/img/mdt-close-call.webp" width="400" alt="Closing a call"> |
+| **Dispatch board:** command notices, live calls with priority P0-P3, units on duty | **Closing a call:** an outcome and a note for every call |
+| <img src="docs/img/mdt-call-history.webp" width="400" alt="Call history"> | <img src="docs/img/cover-person.webp" width="190" alt="Folded"> <img src="docs/img/cover-actions.webp" width="190" alt="Folded, record actions"> |
+| **Call history:** every closed call, its units and outcome | **Folded:** a compact layout with the record's actions in one sheet |
+
+### Records, reports and warrants
+
+| | |
+|---|---|
+| <img src="docs/img/mdt-person.webp" width="400" alt="Person record"> | <img src="docs/img/mdt-licence.webp" width="400" alt="Licence sheet"> |
+| **Person record:** tags, warrants (with judge requests), licences, fines, notes, vehicles, mugshot | **Citizen licences:** suspend for days with a reason, or revoke and reinstate (command) |
+| <img src="docs/img/mdt-report.webp" width="400" alt="Report editor"> | <img src="docs/img/mdt-weapon.webp" width="400" alt="Serial search"> |
+| **Reports:** templates, people with roles, charges and plates | **Weapons registry:** owner, status and history of a serial; mark a gun stolen, seized or destroyed |
+| <img src="docs/img/mdt-guns.webp" width="400" alt="Guns on a record"> | |
+| **Guns on a record:** guns bought in a WHIP shop register themselves | |
+
+### Command
+
+| | |
+|---|---|
+| <img src="docs/img/mdt-command.webp" width="400" alt="Command tab"> | <img src="docs/img/mdt-award.webp" width="400" alt="Officer profile with awards"> |
+| **Roster, permit applications, complaints and department rules** in one tab | **Officer profiles:** duty hours, stats, awards (give one from here) |
+| <img src="docs/img/mdt-profile.webp" width="400" alt="Own profile with department rules"> | <img src="docs/img/mdt-complaint.webp" width="400" alt="Complaint review"> |
+| **Your profile:** read and sign the department rules | **Complaints:** filed by citizens in the Court app; command records a finding and the citizen gets a letter |
+
+### Investigations and forensics
+
+Shared case boards with pins, red string, officers on the case and a case log. With
+[whip_evidence](https://github.com/LeSiiN/whip_evidence) on the server, each investigation is its evidence case:
+officers file analysed bags, photos and test-fired guns from the MDT and read lab results, prints matched to people on
+file, post-mortem reports and the chain of custody.
+
+| | |
+|---|---|
+| <img src="docs/img/mdt-evidence.webp" width="400" alt="Evidence on an investigation"> | <img src="docs/img/mdt-file-evidence.webp" width="400" alt="Filing evidence"> |
+| **Evidence on a case:** lab results, matched prints, post-mortem report | **Filing:** pick analysed bags you carry |
+
+### Tickets, impound and tow trucks
+
+| | |
+|---|---|
+| <img src="docs/img/mdt-impound.webp" width="400" alt="Impound form"> | <img src="docs/img/mdt-impound-lot.webp" width="400" alt="Impound lot"> |
+| **Impound form:** reason, lot, fee, hold; warns about stolen cars and BOLOs | **Impound lot:** every held car and what is owed |
+
+| | |
+|---|---|
+| <img src="docs/img/ticket-book.webp" width="260" alt="Ticket book"> | <img src="docs/img/tow-app.webp" width="260" alt="Tow app"> |
+| **Ticket book:** citations, parking tickets and warnings at the roadside, signed or contested | **Tow app:** jobs and waypoints for tow drivers |
+
+### Station panels
+
+| | |
+|---|---|
+| <img src="docs/img/station-armory.webp" width="420" alt="Armory"> | <img src="docs/img/station-locker.webp" width="420" alt="Locker"> |
+| **Armory:** kit tiers by rank and licence | **Lockers and stash:** pockets beside the store |
+| <img src="docs/img/station-wardrobe.webp" width="300" alt="Wardrobe"> | <img src="docs/img/station-garage.webp" width="300" alt="Fleet"> |
+| **Wardrobe:** uniforms per rank | **Fleet:** cars per rank and licence |
+
+### Courts
+
+Works with [pure-whip-courts](https://github.com/fozenistaken/pure-whip-courts): judges sign or deny warrant requests
+and rule on contested tickets; citizens pay tickets and impound fees, contest tickets, apply for permits and file
+complaints.
+
+| | |
+|---|---|
+| <img src="docs/img/court-desk.webp" width="260" alt="Judge's desk"> | <img src="docs/img/court-permit.webp" width="260" alt="Permit application"> |
+| **Judge's desk:** warrant requests and contested tickets | **Permits:** citizens apply, command decides |
+
+### And in the world
+
+Cuffs and zip ties, searching, escorting; a radar with plate reads; speed cameras; CCTV and body cams; wheel clamps;
+K9 (a dog that follows, searches people and cars, and takes suspects down); the prison with work and escapes; an
+academy exam built from your own penal code; automatic calls for shots, break-ins and explosions.
+
 
 ## Install
 
@@ -101,7 +196,7 @@ Under `Config.Providers` in `config.lua` and on the settings page:
   on an investigation) or at the lab device, see lab results, prints matched to people on file, post-mortem reports,
   photos and the chain of custody, and open the locker at an evidence locker. Closing an investigation closes its
   locker. In whip_evidence's config: `PoliceJobs = { 'lspd', 'bcso' }` and `ApiResources = { 'pure-whip-police' }`;
-  the `GetTraits` export (prints on file) is in the local fork under `resources/[forks]`. `'builtin'` keeps this
+  the `GetTraits` export (prints on file) is in [PureFX's fork](https://github.com/fozenistaken/whip_evidence). `'builtin'` keeps this
   resource's own evidence.
 
 If a named resource isn't started, the built-in part is used and the console says so once.
@@ -153,10 +248,6 @@ Every export returns a result, or `false, why`.
 - `plateSeen`, `plateHit`, `speedTicket`
 - `finesPaid`, `impounded`, `unclamped`, `escaped`, `academy`
 
-## Assets
-
-The wheel clamp model (`stream/pwp_wheel_clamp.ydr`) is built from `art/pwp_wheel_clamp.recipe.json` with the mapping tool's box recipe. The pictures in `html/img/items/` and `html/img/tiers/` are generated (Gemini). Car and clothing pictures come from WHIP's media packs (whip_media_previews, whip_media_clothing_male/female).
-
 ## Tests
 
 `tests/run.lua` runs the plain-Lua unit tests of `shared/` with any Lua 5.4: `lua tests/run.lua .`
@@ -177,3 +268,23 @@ the radar and plate reads, K9 commands, clamps on cars, the camera viewer and bo
 `Wait(0)` is one 16 ms frame, as in game, so per-frame loops advance the clock.
 
     lua pure-whip-police/tests/harness/client.lua <path to pure-whip-police>
+
+## Credits
+
+- **Made by [PureFX](https://purefx.dev).** More scripts and updates at **[purefx.dev](https://purefx.dev)**.
+- **[WHIP](https://whipfx.net)** by [WHIPFX](https://github.com/WHIPFX) (LGPL-3.0): the framework this job is built on.
+- **[whip_evidence](https://github.com/LeSiiN/whip_evidence)** by LeSiiN (GPL-3.0): the forensics the MDT works with.
+  PureFX's themed fork with the `GetTraits` export is at
+  [fozenistaken/whip_evidence](https://github.com/fozenistaken/whip_evidence).
+- **Positions:** the sheriff desks and parking spots from [qb-policejob](https://github.com/qbcore-framework/qb-policejob),
+  [qbx_police](https://github.com/Qbox-project/qbx_police) and the Vertexlabs duty system; the prison spots from
+  [qb-prison](https://github.com/qbcore-framework/qb-prison).
+- **Ideas:** [es_mdt](https://github.com/Dagermor/es_mdt) by Dagermor and [ps-mdt](https://github.com/Project-Sloth/ps-mdt)
+  by Project Sloth were studied for features. No code was taken from either.
+- **Fonts:** Hanken Grotesk and JetBrains Mono, SIL Open Font License 1.1 (texts in `html/shared/fonts/`).
+- **Pictures:** item and armory pictures are generated with Gemini. Car and clothing pictures come from WHIP's media
+  packs and are not in this repo. The screenshots above are the real UI rendered in a browser with sample data.
+
+## Licence
+
+GPL-3.0, see [LICENSE](LICENSE). Copyright 2026 [PureFX](https://purefx.dev).
