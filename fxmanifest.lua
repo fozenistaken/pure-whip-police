@@ -9,6 +9,7 @@ version '0.1.0'
 
 dependencies { 'oxmysql', 'whip_core' }
 whip_requires '1.2'
+whip_updates 'fozenistaken/pure-whip-police'
 
 shared_scripts {
     '@whip_core/lib/satellite.lua',
