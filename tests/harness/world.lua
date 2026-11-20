@@ -381,7 +381,16 @@ function core.PayPlayer(_, who, amount, opts)
     return { amount = amount }
 end
 function core.BankSystemDeposit(_, acc, amount) W.deposits[#W.deposits + 1] = { acc = acc, amount = amount } return true end
-function core.GetBankAccount() return nil end
+W.bankAccounts, W.balances, W.transfers = {}, {}, {}
+function core.GetBankAccount(_, ref) local id = rawtype(ref) == 'table' and W.bankAccounts[ref.number] return id and { accountId = id } or nil end
+function core.GetDefaultBankAccount(_, who) local p = W.players[tonumber(who)] return p and { accountId = 1000 + p.charId } or nil end
+function core.BankSystemTransfer(_, from, to, amount, opts)
+    if (W.balances[from] or 0) < amount then return false, 'Insufficient funds' end
+    W.balances[from] = W.balances[from] - amount
+    W.balances[to] = (W.balances[to] or 0) + amount
+    W.transfers[#W.transfers + 1] = { from = from, to = to, amount = amount, reason = opts and opts.reason }
+    return true
+end
 function core.Progress(_, src, opts) note('progress', src, opts and opts.label) if W.progress then return true end return false, 'cancelled' end
 function core.GetPlayerRole(_, src, job) local p = W.players[src] if p and p.jobs and p.jobs[job] then return { name = p.jobs[job].name, level = p.jobs[job].level } end return nil end
 function core.HasJobPermission(_, src, job, perm) local p = W.players[src] if p and p.jobs and p.jobs[job] and p.perms[perm] then return true end return false, 'no permission' end

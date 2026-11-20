@@ -180,7 +180,11 @@ Config.Uniforms = {
 
 -- Shift pay to the bank while on duty, every `every` minutes (1-120). rates: by rank level, the highest level at or
 -- below the officer's wins; amount $0-100000 per payment. Example: { level = 60, amount = 150 }
+-- from: 'state' pays new money; 'department' pays from the department's account in Config.Fines (where its fines go).
+-- An empty account misses the paycheck: it is logged, the officer is told, and leaders on duty are told (every
+-- 10 minutes at most). A department with no account is paid by the state. Example: from = 'department'
 Config.Pay = {
+    from = 'state',
     every = 15,
     rates = {
         { level = 1, amount = 60 },

@@ -7,7 +7,7 @@ local TL = PWP.TicketLogic
 local Impound = { hauled = {}, shift = {}, plates = {} }
 PWP.Impound = Impound
 
-local function money(n) return '$' .. tostring(math.floor(n)) end
+local money = PWP.money
 local function now() return os.time() end
 
 local function clampedRow(vehicleId)

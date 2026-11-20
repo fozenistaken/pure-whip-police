@@ -189,7 +189,7 @@ button.pwp-code.mdt-cp{background:none;padding:0;text-align:left}
   const PINKIND = { person: 'Person', vehicle: 'Vehicle', report: 'Report', evidence: 'Evidence', note: 'Note' };
   const EVKIND = { casing: 'Casing', fragment: 'Round', blood: 'Blood', prints: 'Prints', gun: 'Gun' };
   const SHEET_TITLE = { note: 'Add a note', bolo: 'Look out for', warrant: 'Issue a warrant', plate: 'Look out for a plate', penal: 'Add or change a charge' };
-  const FACT = [['weapon_serial', 'Serial'], ['serial', 'Serial'], ['fingerprint', 'Print'], ['blood_type', 'Blood type'], ['ballistics', 'Ballistics'], ['caliber', 'Calibre'], ['ammo', 'Ammunition'],
+  const FACT = [['weapon_serial', 'Serial'], ['serial', 'Serial'], ['fingerprint', 'Print'], ['blood_type', 'Blood type'], ['blood_traces', 'Blood traces'], ['ballistics', 'Ballistics'], ['caliber', 'Calibre'], ['ammo', 'Ammunition'],
     ['paint', 'Paint'], ['gsr', 'Residue'], ['shoe_profile', 'Sole'], ['shoe_size', 'Shoe size'], ['tyre_profile', 'Tread'], ['tyre_width', 'Tyre width'], ['fiber', 'Fibres'],
     ['surface', 'Surface'], ['cleaner', 'Cleaned with'], ['age', 'Age when collected'], ['quality', 'Quality'], ['cause', 'Cause of death']];
   const COPYABLE = new Set(['weapon_serial', 'serial', 'fingerprint', 'blood_type', 'ballistics', 'paint', 'shoe_profile', 'tyre_profile', 'fiber']);

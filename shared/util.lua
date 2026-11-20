@@ -38,3 +38,13 @@ end
 function PWP.dept(key)
     return Config.Departments[key]
 end
+
+function PWP.money(n)
+    local s = tostring(math.floor(n))
+    while true do
+        local done
+        s, done = s:gsub('^(%d+)(%d%d%d)', '%1,%2')
+        if done == 0 then break end
+    end
+    return '$' .. s
+end

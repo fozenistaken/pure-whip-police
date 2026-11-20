@@ -868,6 +868,28 @@ scenario('case officers and log, automatic alerts', function()
     W.players[5].coords = vector3(12, 11, 30)
 end)
 
+scenario('shift pay from the department account', function()
+    local was = { from = Config.Pay.from, every = Config.Pay.every, account = Config.Fines.account }
+    Config.Pay.from, Config.Pay.every, Config.Fines.account = 'department', 1, 'WB-PAY'
+    W.bankAccounts['WB-PAY'] = 77
+    local onDuty = #(PWP.onDutyOfficers() or {})
+    W.balances[77], W.transfers = 100000, {}
+    local paid = #W.paid
+    W.advance(61000)
+    check('every officer on duty paid from the account', onDuty > 0 and #W.transfers == onDuty, #W.transfers .. '/' .. onDuty)
+    check('pay comes out of the account', W.balances[77] < 100000 and W.transfers[1] and W.transfers[1].from == 77)
+    check('no new money for shift pay', #W.paid == paid, #W.paid - paid)
+    W.balances[77], W.transfers, W.activity = 0, {}, {}
+    local mark = #W.notesFor(1, 'phone')
+    W.advance(61000)
+    local missed = 0
+    for _, a in ipairs(W.activity) do if a.kind == 'paycheck_missed' then missed = missed + 1 end end
+    check('empty account misses the paychecks', #W.transfers == 0 and missed == onDuty, missed)
+    check('still no new money', #W.paid == paid, #W.paid - paid)
+    check('the captain hears about it', #W.notesFor(1, 'phone') > mark)
+    Config.Pay.from, Config.Pay.every, Config.Fines.account = was.from, was.every, was.account
+end)
+
 scenario('end state', function()
     local seen = {}
     for _, m in ipairs(W.missing) do seen[m] = true end
