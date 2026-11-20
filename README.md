@@ -69,6 +69,10 @@ post-mortems and the case lockers.
 | <img src="docs/img/evidence-cases.webp" width="400" alt="Case locker"> | |
 | **Case locker:** the investigation number is the locker | |
 
+The fork's evidence items, one picture per kind of bag and per tool:
+
+<img src="docs/img/evidence-items.webp" width="820" alt="Evidence bags and forensic tools">
+
 ### Tickets, impound and tow trucks
 
 | | |
