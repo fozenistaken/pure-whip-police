@@ -66,8 +66,12 @@ post-mortems and the case lockers.
 |---|---|
 | <img src="docs/img/evidence-photo.webp" width="400" alt="Crime scene photo"> | <img src="docs/img/evidence-postmortem.webp" width="400" alt="Post-mortem findings"> |
 | **Crime scene photo:** every trace in the picture and the chain of custody | **Post-mortem:** each hit where it landed, cause of death, range |
-| <img src="docs/img/evidence-cases.webp" width="400" alt="Case locker"> | |
-| **Case locker:** the investigation number is the locker | |
+| <img src="docs/img/evidence-lab.webp" width="400" alt="Lab monitor"> | <img src="docs/img/evidence-cases.webp" width="400" alt="Case locker"> |
+| **Lab monitor:** each bag in turn, the instrument at work, then the results | **Case locker:** the investigation number is the locker |
+
+<img src="docs/img/evidence-scan.webp" width="820" alt="Scanning a scene">
+
+**Scanning a scene:** a card over each trace in view, and the camera's list of everything in the picture.
 
 The fork's evidence items, one picture per kind of bag and per tool:
 
