@@ -1,5 +1,7 @@
 # pure-whip-police
 
+> Works on **FiveM Legacy** and **GTA V Enhanced**: each release has a download for each.
+
 **A complete police job for [WHIP](https://whipfx.net), by [PureFX](https://purefx.dev).**
 
 Departments, duty, gear, arrests, records, tickets, impound, a prison, dispatch, a department radio, K9, CCTV, forensics
@@ -118,7 +120,9 @@ academy exam built from your own penal code; automatic calls for shots, break-in
 
 ## Install
 
-1. Put the folder in `resources` and `ensure pure-whip-police` after `whip_core`, `whip_phone` and `whip_voice`.
+1. Download `pure-whip-police-legacy.zip` (FiveM Legacy) or `pure-whip-police-enhanced.zip` (GTA V Enhanced) from
+   [Releases](https://github.com/fozenistaken/pure-whip-police/releases/latest), put the folder in `resources` and
+   `ensure pure-whip-police` after `whip_core`, `whip_phone` and `whip_voice`.
 2. It needs `oxmysql` and `whip_core` 1.2+. `whip_phone` (the MDT) and `whip_voice` (the radio) are optional.
    For forensics add [whip_evidence](https://github.com/fozenistaken/whip_evidence) (PureFX's fork of LeSiiN's, needed
    for prints on file): `ensure whip_evidence_assets` and `ensure whip_evidence` before this resource, and in its

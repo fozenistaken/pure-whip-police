@@ -5,7 +5,7 @@ lua54 'yes'
 name 'pure-whip-police'
 description 'Police job for WHIP: departments, duty, gear, arrests, records, fines, prison, dispatch, radio and an MDT in whip_phone'
 author 'PureFX (purefx.dev)'
-version '0.2.0'
+version '0.2.1'
 
 dependencies { 'oxmysql', 'whip_core' }
 whip_requires '1.2'
