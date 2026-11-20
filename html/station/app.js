@@ -9,16 +9,6 @@ html,body{margin:0;height:100%;background:transparent;overflow:hidden}
 #app.at-right{justify-content:flex-end;padding-right:6rem}
 #app.at-right.wide{padding-right:4rem}
 #app.at-center{justify-content:center}
-.st{position:relative;pointer-events:auto;max-height:calc(100vh - 2rem);background:rgba(14,16,19,.94);border-radius:.875rem;display:flex;flex-direction:column;overflow:hidden}
-.st-head{display:flex;align-items:flex-start;gap:.75rem;padding:1.125rem 1.25rem .875rem}
-.st-head .k{display:grid;gap:.125rem;flex:1;min-width:0}
-.st-head small{font-size:.6875rem;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--faint)}
-.st-head h1{margin:0;font-size:1.625rem;font-weight:800;letter-spacing:-.025em;line-height:1.1;text-wrap:balance}
-.st-body{flex:1;min-height:0;overflow-y:auto;padding:0 1.25rem}
-.st-foot{display:flex;align-items:center;flex-wrap:wrap;gap:.625rem;padding:.875rem 1.25rem 1rem;border-top:1px solid var(--line)}
-.st-foot .pwp-err{flex-basis:100%}
-.hint{display:flex;flex-wrap:wrap;gap:.875rem;color:var(--faint);font-size:.75rem;margin-right:auto}
-.hint span{display:inline-flex;align-items:center;gap:.375rem}
 .grow{flex:1}
 
 .pick{position:relative;display:grid;gap:.125rem;padding:.25rem 0 1rem}
@@ -50,7 +40,7 @@ html,body{margin:0;height:100%;background:transparent;overflow:hidden}
 .out .t .s{display:block;font-weight:500;font-size:.75rem;color:var(--mute)}
 
 .armory{width:54rem;height:42rem;display:grid;grid-template-columns:14rem minmax(0,1fr);grid-template-rows:auto minmax(0,1fr) auto}
-.armory .st-head{grid-column:1/-1}
+.armory .pwp-panel-head{grid-column:1/-1}
 .armory .tiers{grid-row:2/4;border-right:1px solid var(--line);padding:0 .75rem 1rem;overflow-y:auto}
 .armory .tiers .pick{padding:0}
 .items{overflow-y:auto;padding:0 1.25rem 1rem;display:grid;grid-template-columns:repeat(auto-fill,minmax(10.5rem,1fr));gap:.625rem;align-content:start}
@@ -60,7 +50,7 @@ html,body{margin:0;height:100%;background:transparent;overflow:hidden}
 .item .nm{font-weight:700;font-size:.875rem;line-height:1.2;overflow-wrap:anywhere}
 .item .row{display:flex;align-items:center;justify-content:space-between;gap:.5rem}
 .item .w{font-family:var(--mono);font-size:.75rem;color:var(--faint)}
-.armory .st-foot{grid-column:2}
+.armory .pwp-panel-foot{grid-column:2}
 .cost{font-size:.8125rem;color:var(--mute)}
 .cost b{color:var(--text)}
 
@@ -106,8 +96,8 @@ html,body{margin:0;height:100%;background:transparent;overflow:hidden}
     return `<span class="art ${cls}">${pic ? `<img src="${esc(pic)}" alt=""${next ? ` data-alt="${esc(next)}"` : ''}>` : ''}${glyph}</span>`;
   };
   const kg = (n) => (Math.round((Number(n) || 0) * 10) / 10).toFixed(1);
-  const hint = (pairs) => `<div class="hint">${pairs.map(([k, l]) => `<span><span class="pwp-kbd">${k}</span>${l}</span>`).join('')}</div>`;
-  const head = (title) => `<div class="st-head"><div class="k"><small>${esc(s.data.short)} · ${esc(s.data.title)}</small><h1>${esc(title)}</h1></div><button class="pwp-btn ghost icon pwp-press" data-a="close" aria-label="Close">${I.x}</button></div>`;
+  const hint = (pairs) => `<div class="pwp-hint">${pairs.map(([k, l]) => `<span><span class="pwp-kbd">${k}</span>${l}</span>`).join('')}</div>`;
+  const head = (title) => `<div class="pwp-panel-head"><div class="k"><small>${esc(s.data.short)} · ${esc(s.data.title)}</small><h1>${esc(title)}</h1></div><button class="pwp-btn ghost icon pwp-press" data-a="close" aria-label="Close">${I.x}</button></div>`;
   const err = () => (s.err ? `<div class="pwp-err" role="alert">${I.alert}<span>${esc(s.err)}</span></div>` : '');
   const busy = () => `<div class="pwp-busy ${s.busy ? 'on' : ''}"></div>`;
 
@@ -116,17 +106,17 @@ html,body{margin:0;height:100%;background:transparent;overflow:hidden}
       const d = s.data;
       const rows = d.uniforms.map((u) => `<button class="${s.pick === u.i ? 'on' : ''} ${u.locked ? 'locked' : ''}" data-a="wear" data-i="${u.i}" ${u.locked ? 'aria-disabled="true"' : ''}>${art('top', u.img, I.shirt)}<span class="t">${esc(u.label)}${u.locked ? `<span class="s">${esc(u.locked)}</span>` : ''}</span></button>`).join('')
         + `<button class="${s.pick === 'own' ? 'on' : ''}" data-a="wear" data-i="own">${art('top', d.ownImg, I.shirt)}<span class="t">Own clothes</span></button>`;
-      return `<section class="st side">${busy()}${head('Uniform')}<div class="st-body"><div class="pick" data-g="list">${rows}</div></div>
-        <div class="st-foot">${err()}${hint([['↑↓', 'Change'], ['Esc', 'Close']])}</div></section>`;
+      return `<section class="pwp-panel side">${busy()}${head('Uniform')}<div class="pwp-panel-body"><div class="pick" data-g="list">${rows}</div></div>
+        <div class="pwp-panel-foot">${err()}${hint([['↑↓', 'Change'], ['Esc', 'Close']])}</div></section>`;
     },
     garage() {
       const d = s.data;
       const car = d.cars.find((c) => c.i === s.pick);
       const canTake = car && !car.locked && !d.out;
-      return `<section class="st side">${busy()}${head('Take a car')}
+      return `<section class="pwp-panel side">${busy()}${head('Take a car')}
         ${d.out ? `<div class="out pwp-bracket">${art('car', d.out.img, I.car)}<span class="t">Your ${esc(d.out.label)} is out<span class="s">Return it before you take another</span></span><button class="pwp-btn sm pwp-press" data-a="return">Return</button></div>` : ''}
-        <div class="st-body"><div class="pick" data-g="list">${d.cars.map((c) => `<button class="${s.pick === c.i ? 'on' : ''} ${c.locked ? 'locked' : ''}" data-a="pickCar" data-i="${c.i}">${art('car', c.img, I.car)}<span class="t">${esc(c.label)}<span class="s">${c.locked ? esc(c.locked) : `<span class="mono">${esc(c.model)}</span>`}</span></span></button>`).join('')}</div></div>
-        <div class="st-foot">${err()}${hint([['Esc', 'Close']])}<button class="pwp-cta has-kbd pwp-press" data-a="take" ${canTake ? '' : 'disabled'}>Take ${esc(car ? car.label : 'a car')}<span class="pwp-kbd">Enter</span></button></div></section>`;
+        <div class="pwp-panel-body"><div class="pick" data-g="list">${d.cars.map((c) => `<button class="${s.pick === c.i ? 'on' : ''} ${c.locked ? 'locked' : ''}" data-a="pickCar" data-i="${c.i}">${art('car', c.img, I.car)}<span class="t">${esc(c.label)}<span class="s">${c.locked ? esc(c.locked) : `<span class="mono">${esc(c.model)}</span>`}</span></span></button>`).join('')}</div></div>
+        <div class="pwp-panel-foot">${err()}${hint([['Esc', 'Close']])}<button class="pwp-cta has-kbd pwp-press" data-a="take" ${canTake ? '' : 'disabled'}>Take ${esc(car ? car.label : 'a car')}<span class="pwp-kbd">Enter</span></button></div></section>`;
     },
     armory() {
       const d = s.data;
@@ -134,10 +124,10 @@ html,body{margin:0;height:100%;background:transparent;overflow:hidden}
       const want = s.take[tier.id] || {};
       const n = Object.values(want).reduce((a, b) => a + b, 0);
       const cost = tier.items.reduce((a, it) => a + (want[it.key] || 0) * (it.price || 0), 0);
-      return `<section class="st armory">${busy()}${head('Sign out kit')}
+      return `<section class="pwp-panel armory">${busy()}${head('Sign out kit')}
         <div class="tiers"><div class="pick" data-g="tiers">${d.tiers.map((t) => `<button class="${t.id === tier.id ? 'on' : ''} ${t.locked ? 'locked' : ''}" data-a="tier" data-t="${esc(t.id)}">${art('tier', `../img/tiers/${t.id}.webp`, I.gun)}<span class="t">${esc(t.label)}${t.locked ? `<span class="s">${esc(t.locked)}</span>` : ''}</span></button>`).join('')}</div></div>
         <div class="items">${tier.locked ? `<div class="pwp-empty" style="grid-column:1/-1">${esc(tier.locked)}</div>` : tier.items.map((it) => `<div class="item ${want[it.key] ? 'picked' : ''}">${art('', it.img, I.box, `../img/items/${it.key}.webp`)}<span class="nm">${esc(it.label)}</span><div class="row"><span class="w">${it.price ? B.money(it.price) : it.weight != null ? kg(it.weight) + ' kg' : ''}</span><span class="pwp-step"><button data-a="count" data-k="${esc(it.key)}" data-d="-1" aria-label="One less">${I.minus}</button><span class="num">${want[it.key] || 0}</span><button data-a="count" data-k="${esc(it.key)}" data-d="1" aria-label="One more">${I.plus}</button></span></div></div>`).join('')}</div>
-        <div class="st-foot">${err()}${cost ? `<span class="cost">Cost <b class="num">${B.money(cost)}</b></span>` : ''}<span class="grow"></span><button class="pwp-cta has-kbd pwp-press" data-a="armory" ${n && !tier.locked ? '' : 'disabled'}>${n ? `Take ${n} ${n === 1 ? 'item' : 'items'}` : 'Take'}<span class="pwp-kbd">Enter</span></button></div></section>`;
+        <div class="pwp-panel-foot">${err()}${cost ? `<span class="cost">Cost <b class="num">${B.money(cost)}</b></span>` : ''}<span class="grow"></span><button class="pwp-cta has-kbd pwp-press" data-a="armory" ${n && !tier.locked ? '' : 'disabled'}>${n ? `Take ${n} ${n === 1 ? 'item' : 'items'}` : 'Take'}<span class="pwp-kbd">Enter</span></button></div></section>`;
     },
     storage() {
       const d = s.data;
@@ -151,9 +141,9 @@ html,body{margin:0;height:100%;background:transparent;overflow:hidden}
         const weight = st.maxWeight ? `${kg(st.weight)} of ${kg(st.maxWeight)} kg` : `${kg(st.weight)} kg`;
         return `<div class="store"><div class="store-h"><b>${esc(label)}</b><span>${weight}</span></div><div class="slots">${cells}</div></div>`;
       };
-      return `<section class="st storage">${busy()}${head(s.data.kind === 'locker' ? 'Your locker' : s.data.title)}
+      return `<section class="pwp-panel storage">${busy()}${head(s.data.kind === 'locker' ? 'Your locker' : s.data.title)}
         <div class="stores">${side('pockets', 'Pockets', d.pockets)}${side('store', d.storeLabel || 'Locker', d.store)}</div>
-        <div class="st-foot">${err()}${hint([['Click', 'Move the stack'], ['Shift', 'Move one'], ['Esc', 'Close']])}</div></section>`;
+        <div class="pwp-panel-foot">${err()}${hint([['Click', 'Move the stack'], ['Shift', 'Move one'], ['Esc', 'Close']])}</div></section>`;
     },
   };
 

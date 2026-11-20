@@ -142,6 +142,17 @@ button.pwp-row:active{transform:scale(.985)}
 .pwp-tot b{font-size:1.5rem}
 .pwp-two{display:grid;grid-template-columns:1fr 1fr;gap:.625rem}
 
+.pwp-panel{position:relative;pointer-events:auto;max-height:calc(100vh - 2rem);background:rgba(14,16,19,.94);border-radius:.875rem;display:flex;flex-direction:column;overflow:hidden}
+.pwp-panel-head{display:flex;align-items:flex-start;gap:.75rem;padding:1.125rem 1.25rem .875rem}
+.pwp-panel-head .k{display:grid;gap:.125rem;flex:1;min-width:0}
+.pwp-panel-head small{font-size:.6875rem;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--faint)}
+.pwp-panel-head h1{margin:0;font-size:1.625rem;font-weight:800;letter-spacing:-.025em;line-height:1.1;text-wrap:balance}
+.pwp-panel-body{flex:1;min-height:0;overflow-y:auto;padding:0 1.25rem}
+.pwp-panel-foot{display:flex;align-items:center;flex-wrap:wrap;gap:.625rem;padding:.875rem 1.25rem 1rem;border-top:1px solid var(--line)}
+.pwp-panel-foot .pwp-err{flex-basis:100%}
+.pwp-hint{display:flex;flex-wrap:wrap;gap:.875rem;color:var(--faint);font-size:.75rem;margin-right:auto}
+.pwp-hint span{display:inline-flex;align-items:center;gap:.375rem}
+
 .pwp-fade{animation:pwp-fade .14s var(--out)}
 @keyframes pwp-fade{from{opacity:0;transform:translateY(.1875rem)}to{opacity:1;transform:none}}
 @media (prefers-reduced-motion:reduce){.pwp-fade{animation:none}.pwp-busy::before{animation-duration:2s}}
