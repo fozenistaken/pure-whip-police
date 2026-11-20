@@ -58,6 +58,17 @@ file, post-mortem reports and the chain of custody.
 | <img src="docs/img/mdt-evidence.webp" width="400" alt="Evidence on an investigation"> | <img src="docs/img/mdt-file-evidence.webp" width="400" alt="Filing evidence"> |
 | **Evidence on a case:** lab results, matched prints, post-mortem report | **Filing:** pick analysed bags you carry |
 
+On the street the evidence work is whip_evidence's own, in the same look as the MDT
+([PureFX's themed fork](https://github.com/fozenistaken/whip_evidence)): scanning a scene, photos, bags, the lab,
+post-mortems and the case lockers.
+
+| | |
+|---|---|
+| <img src="docs/img/evidence-photo.webp" width="400" alt="Crime scene photo"> | <img src="docs/img/evidence-postmortem.webp" width="400" alt="Post-mortem findings"> |
+| **Crime scene photo:** every trace in the picture and the chain of custody | **Post-mortem:** each hit where it landed, cause of death, range |
+| <img src="docs/img/evidence-cases.webp" width="400" alt="Case locker"> | |
+| **Case locker:** the investigation number is the locker | |
+
 ### Tickets, impound and tow trucks
 
 | | |
@@ -101,6 +112,10 @@ academy exam built from your own penal code; automatic calls for shots, break-in
 
 1. Put the folder in `resources` and `ensure pure-whip-police` after `whip_core`, `whip_phone` and `whip_voice`.
 2. It needs `oxmysql` and `whip_core` 1.2+. `whip_phone` (the MDT) and `whip_voice` (the radio) are optional.
+   For forensics add [whip_evidence](https://github.com/fozenistaken/whip_evidence) (PureFX's fork of LeSiiN's, needed
+   for prints on file): `ensure whip_evidence_assets` and `ensure whip_evidence` before this resource, and in its
+   `config/config.lua` the fork already has `PoliceJobs = { 'lspd', 'bcso' }` and `ApiResources = { 'pure-whip-police' }`
+   (set the same two on LeSiiN's original). Without it the job uses its own casings, blood and lab.
 3. Everything is set up in game under `/whip` → Settings → Police: departments, stations, the points with their Place button, and where fine money goes.
 4. Hire officers in `/whip` → Jobs (LSPD and BCSO are made on the first start, with seven ranks).
 
