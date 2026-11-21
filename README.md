@@ -1,6 +1,7 @@
 # pure-whip-police
 
-> Works on **FiveM Legacy** and **GTA V Enhanced**: each release has a download for each.
+> Works on **FiveM Legacy** and **GTA V Enhanced**: each release has a download for each. A git clone is the Legacy
+> build; on Enhanced use `pure-whip-police-enhanced.zip`.
 
 **A complete police job for [WHIP](https://whipfx.net), by [PureFX](https://purefx.dev).**
 
